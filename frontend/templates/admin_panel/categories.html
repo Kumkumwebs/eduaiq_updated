@@ -13,7 +13,7 @@
       <span class="text-secondary-light">/ Categories</span>
     </div>
   </div>
-  <button class="btn btn-primary-600 d-flex align-items-center gap-6" data-bs-toggle="modal" data-bs-target="#addCategoryModal">
+  <button class="btn btn-primary-600 d-flex align-items-center gap-6" onclick="openAddCategoryModal()">
     <span class="d-flex text-md"><i class="ri-add-large-line"></i></span>
     Add Category
   </button>
@@ -47,16 +47,17 @@
   </div>
 </div>
 
-<!-- Add Category Modal -->
-<div class="modal fade" id="addCategoryModal" tabindex="-1" aria-labelledby="addCategoryModalLabel" aria-hidden="true">
+<!-- Add/Edit Category Modal -->
+<div class="modal fade" id="categoryModal" tabindex="-1" aria-labelledby="categoryModalLabel" aria-hidden="true">
   <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
-        <h6 class="modal-title" id="addCategoryModalLabel">Add New Category</h6>
+        <h6 class="modal-title" id="categoryModalLabel">Add New Category</h6>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
-        <form id="addCategoryForm" onsubmit="submitCategory(event)">
+        <form id="categoryForm" onsubmit="submitCategory(event)">
+          <input type="hidden" id="catId" name="id" value="">
           <div class="mb-3">
             <label for="catName" class="form-label">Category Name <span class="text-danger">*</span></label>
             <input type="text" class="form-control" id="catName" name="name" required oninput="generateCatSlug()">
@@ -83,7 +84,7 @@
           </div>
           <div class="text-end">
             <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
-            <button type="submit" class="btn btn-primary btn-sm">Save Category</button>
+            <button type="submit" class="btn btn-primary btn-sm" id="saveCatBtn">Save Category</button>
           </div>
         </form>
       </div>
@@ -95,6 +96,10 @@
   const API_BASE_URL = window.location.origin;
 
   function generateCatSlug() {
+    const catId = document.getElementById('catId').value;
+    // Don't auto-generate slug on edit if user hasn't explicitly cleared it
+    if (catId) return;
+
     const nameVal = document.getElementById('catName').value;
     const slugVal = nameVal.toLowerCase()
                            .replace(/[^a-z0-9\s-]/g, '')
@@ -103,9 +108,40 @@
     document.getElementById('catSlug').value = slugVal;
   }
 
+  function openAddCategoryModal() {
+    document.getElementById('categoryForm').reset();
+    document.getElementById('catId').value = '';
+    document.getElementById('categoryModalLabel').textContent = 'Add New Category';
+    document.getElementById('saveCatBtn').textContent = 'Save Category';
+    document.getElementById('catIsActive').checked = true;
+    document.getElementById('catColor').value = '#0d6efd';
+    document.getElementById('catOrder').value = '1';
+
+    const modalEl = document.getElementById('categoryModal');
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+  }
+
+  function editCategory(id, name, slug, color, order, desc, isActive) {
+    document.getElementById('catId').value = id;
+    document.getElementById('catName').value = name || '';
+    document.getElementById('catSlug').value = slug || '';
+    document.getElementById('catColor').value = color || '#0d6efd';
+    document.getElementById('catOrder').value = order || 1;
+    document.getElementById('catDesc').value = desc || '';
+    document.getElementById('catIsActive').checked = Boolean(isActive);
+
+    document.getElementById('categoryModalLabel').textContent = 'Edit Category';
+    document.getElementById('saveCatBtn').textContent = 'Update Category';
+
+    const modalEl = document.getElementById('categoryModal');
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+  }
+
   async function loadAdminCategories() {
     try {
-      const response = await fetch(`${API_BASE_URL}/courses/categories/`);
+      const response = await fetch(`${API_BASE_URL}/courses/categories/?exclude_books=false`);
       const data = await response.json();
       const tbody = document.getElementById('categoryTableBody');
       const results = data.results || [];
@@ -119,11 +155,11 @@
         <tr>
           <td>${c.id}</td>
           <td>
-            <div style="width: 40px; height: 20px; background-color: ${c.color_code || '#ddd'}; border-radius: 4px; border: 1px solid #ccc;"></div>
+            <div style="width: 40px; height: 20px; background-color: ${c.color_code || '#0d6efd'}; border-radius: 4px; border: 1px solid #ccc;"></div>
           </td>
-          <td class="fw-semibold text-dark">${c.name}</td>
-          <td><code>${c.slug}</code></td>
-          <td class="text-muted text-sm">${c.description || '-'}</td>
+          <td class="fw-semibold text-dark">${escapeHtml(c.name)}</td>
+          <td><code>${escapeHtml(c.slug)}</code></td>
+          <td class="text-muted text-sm">${escapeHtml(c.description || '-')}</td>
           <td>${c.order}</td>
           <td>
             <span class="badge ${c.is_active ? 'bg-success' : 'bg-secondary'}">
@@ -131,9 +167,14 @@
             </span>
           </td>
           <td>
-            <button class="btn btn-sm btn-outline-danger" onclick="deleteCategory(${c.id}, '${c.name}')">
-              <i class="ri-delete-bin-line"></i> Delete
-            </button>
+            <div class="d-flex gap-2">
+              <button class="btn btn-sm btn-outline-primary" onclick="editCategory(${c.id}, '${escapeJs(c.name)}', '${escapeJs(c.slug)}', '${escapeJs(c.color_code || '#0d6efd')}', ${c.order}, '${escapeJs(c.description || '')}', ${c.is_active})">
+                <i class="ri-edit-line"></i> Edit
+              </button>
+              <button class="btn btn-sm btn-outline-danger" onclick="deleteCategory(${c.id}, '${escapeJs(c.name)}')">
+                <i class="ri-delete-bin-line"></i> Delete
+              </button>
+            </div>
           </td>
         </tr>
       `).join('');
@@ -147,32 +188,57 @@
     }
   }
 
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  function escapeJs(str) {
+    if (!str) return '';
+    return String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n');
+  }
+
   async function submitCategory(e) {
     e.preventDefault();
-    const form = document.getElementById('addCategoryForm');
-    const formData = new FormData(form);
-    const data = {};
-    formData.forEach((val, key) => data[key] = val);
+    const catId = document.getElementById('catId').value;
+    const isEdit = Boolean(catId);
+
+    const payload = {
+      name: document.getElementById('catName').value.trim(),
+      slug: document.getElementById('catSlug').value.trim(),
+      color_code: document.getElementById('catColor').value,
+      order: parseInt(document.getElementById('catOrder').value, 10) || 1,
+      description: document.getElementById('catDesc').value.trim(),
+      is_active: document.getElementById('catIsActive').checked
+    };
+
+    const url = isEdit ? `${API_BASE_URL}/courses/categories/${catId}/` : `${API_BASE_URL}/courses/categories/`;
+    const method = isEdit ? 'PUT' : 'POST';
 
     try {
       const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || getCookie('csrftoken');
-      const response = await fetch(`${API_BASE_URL}/courses/categories/`, {
-        method: 'POST',
+      const response = await fetch(url, {
+        method: method,
         headers: {
           'Content-Type': 'application/json',
           'X-CSRFToken': csrfToken
         },
-        body: JSON.stringify(data),
+        body: JSON.stringify(payload),
         credentials: 'include'
       });
 
       const resData = await response.json();
       if (response.ok || resData.success) {
-        showToast('Category added successfully!', 'success');
-        const modalEl = document.getElementById('addCategoryModal');
+        showToast(isEdit ? 'Category updated successfully!' : 'Category added successfully!', 'success');
+        const modalEl = document.getElementById('categoryModal');
         const modal = bootstrap.Modal.getInstance(modalEl);
-        modal.hide();
-        form.reset();
+        if (modal) modal.hide();
+        document.getElementById('categoryForm').reset();
         loadAdminCategories();
       } else {
         showToast('Failed to save category: ' + JSON.stringify(resData.errors || resData.error), 'error');
@@ -211,24 +277,12 @@
               credentials: 'include'
             });
 
-            if (response.ok) {
-              Swal.fire({ icon: 'success', title: 'Deleted!', text: 'Category deleted successfully.', timer: 1500, showConfirmButton: false });
+            const resData = await response.json().catch(() => ({}));
+            if (response.ok || resData.success) {
+              Swal.fire({ icon: 'success', title: 'Deleted!', text: resData.message || 'Category deleted successfully.', timer: 1500, showConfirmButton: false });
               loadAdminCategories();
             } else {
-              let errorMsg = 'Server error';
-              try {
-                const data = await response.json();
-                errorMsg = data.error || errorMsg;
-              } catch (jsonErr) {
-                if (response.status === 400) {
-                  errorMsg = 'This category has active courses associated with it and cannot be deleted.';
-                } else if (response.status === 403) {
-                  errorMsg = 'Permission denied (Forbidden / CSRF Verification Failed).';
-                } else {
-                  errorMsg = `Server error occurred (Status: ${response.status}).`;
-                }
-              }
-              Swal.fire({ icon: 'error', title: 'Delete Failed', text: errorMsg });
+              Swal.fire({ icon: 'error', title: 'Delete Failed', text: resData.error || 'Server error occurred.' });
             }
           } catch (e) {
             console.error(e);
@@ -245,11 +299,12 @@
             headers: { 'X-CSRFToken': csrfToken },
             credentials: 'include'
           });
-          if (response.ok) {
-            if (typeof showToast === 'function') showToast('Category deleted successfully!', 'success');
+          const resData = await response.json().catch(() => ({}));
+          if (response.ok || resData.success) {
+            if (typeof showToast === 'function') showToast(resData.message || 'Category deleted successfully!', 'success');
             loadAdminCategories();
           } else {
-            if (typeof showToast === 'function') showToast('Failed to delete category.', 'error');
+            if (typeof showToast === 'function') showToast(resData.error || 'Failed to delete category.', 'error');
           }
         } catch (e) {
           console.error(e);

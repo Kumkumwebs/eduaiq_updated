@@ -10,7 +10,7 @@ level.{% endblock %}
 
 <!-- Banner Section -->
 <section class="inner-banner-wrap mb-0">
-  <div class="inner-baner-container" style="background-image: url({% static 'assets/img/educator-img12.jpg' %});">
+  <div class="inner-baner-container" style="background-image: url({% static 'assets/img/blog-default-indian.jpg' %});">
     <div class="container">
       <div class="inner-banner-content">
         <h1 class="inner-title">All Available Courses</h1>
@@ -364,6 +364,28 @@ level.{% endblock %}
     box-shadow: 0 8px 20px rgba(249, 115, 22, 0.45);
   }
 
+  .entry-meta .btn-purchase-course {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: #ffffff;
+    border: none;
+    font-size: 13px;
+    font-weight: 700;
+    background: linear-gradient(135deg, #64748b 0%, #334155 100%);
+    padding: 9px 22px;
+    border-radius: 30px;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(51, 65, 85, 0.3);
+    transition: all 0.25s ease;
+  }
+
+  .entry-meta .btn-purchase-course:hover {
+    background: linear-gradient(135deg, #475569 0%, #1e293b 100%);
+    transform: translateX(3px);
+  }
+
   .empty-state {
     text-align: center;
     padding: 60px 20px;
@@ -518,10 +540,16 @@ level.{% endblock %}
               </div>
               
               <div class="entry-meta">
-                <a href="/course/?slug=${course.slug}" class="stretched-link" onclick="event.stopPropagation();">
-                  VIEW COURSE
-                  <i class="fas fa-long-arrow-alt-right"></i>
-                </a>
+                ${course.is_accessible ? `
+                  <a href="/course/?slug=${course.slug}" class="stretched-link" onclick="event.stopPropagation();">
+                    VIEW COURSE
+                    <i class="fas fa-long-arrow-alt-right"></i>
+                  </a>
+                ` : `
+                  <button type="button" class="btn-purchase-course" onclick="event.stopPropagation(); handleCoursePurchase(event, '${course.slug}', '${(course.title || '').replace(/'/g, "\\'")}', '${course.price}')">
+                    <i class="fas fa-lock me-1"></i> PURCHASE ₹${course.price}
+                  </button>
+                `}
               </div>
             </div>
           </article>
@@ -580,7 +608,118 @@ level.{% endblock %}
     };
   }
 
+  function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+      const cookies = document.cookie.split(';');
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i].trim();
+        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+          break;
+        }
+      }
+    }
+    return cookieValue;
+  }
+
+  async function handleCoursePurchase(e, slug, title, priceStr) {
+    if (e) e.preventDefault();
+
+    const isLoggedIn = {% if user.is_authenticated %}true{% else %}false{% endif %};
+    if (!isLoggedIn) {
+      window.location.href = `/login/?next=/courses/`;
+      return;
+    }
+
+    const btn = e ? e.currentTarget : null;
+    const originalText = btn ? btn.innerHTML : '';
+    if (btn) { btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Processing...'; btn.disabled = true; }
+
+    try {
+      const orderRes = await fetch('/payments/api/payment/create-order/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') || '' },
+        body: JSON.stringify({ amount: parseFloat(priceStr) }),
+      });
+      const orderData = await orderRes.json();
+      if (orderData.status !== 'success') throw new Error(orderData.message || 'Failed to create order.');
+
+      const options = {
+        key: orderData.key_id || "{{ razorpay_key_id }}",
+        amount: orderData.amount,
+        currency: orderData.currency || 'INR',
+        name: 'EduAiQ',
+        description: 'Course Access: ' + title,
+        prefill: {
+          name: "{{ user.get_full_name|default:user.username|escapejs }}",
+          email: "{{ user.email|escapejs }}",
+          contact: "{{ user.phone|default:''|escapejs }}"
+        },
+        theme: { color: '#f97316' },
+        handler: function (response) {
+          fetch('/payments/api/payment/verify-signature/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') || '' },
+            body: JSON.stringify({
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+              amount: orderData.amount / 100,
+              description: 'Course Access: ' + title,
+              source_type: 'course_enrollment',
+            })
+          })
+          .then(r => r.json())
+          .then(verifyData => {
+            if (verifyData.status === 'success') {
+              fetch(`/courses/courses/${slug}/enroll/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') || '' },
+                body: JSON.stringify({ amount_paid: orderData.amount / 100 })
+              })
+              .then(r => r.json())
+              .then(enrollData => {
+                if (enrollData.success) {
+                  alert('🎉 Payment successful! Aapko "' + title + '" course ka access mil gaya hai.');
+                  loadCourses();
+                } else {
+                  alert('Payment verified, but enrollment failed: ' + (enrollData.error || 'Please contact support.'));
+                }
+              });
+            } else {
+              alert('Payment verification failed: ' + verifyData.message);
+            }
+          })
+          .catch(err => { console.error(err); alert('Error verifying payment.'); })
+          .finally(() => { if (btn) { btn.innerHTML = originalText; btn.disabled = false; } });
+        },
+        modal: {
+          ondismiss: function () { if (btn) { btn.innerHTML = originalText; btn.disabled = false; } }
+        }
+      };
+
+      if (orderData.is_real_order && orderData.order_id) {
+        options.order_id = orderData.order_id;
+      }
+
+      const rzp = new Razorpay(options);
+      rzp.on('payment.failed', function (response) {
+        alert('Payment Failed: ' + response.error.description);
+        if (btn) { btn.innerHTML = originalText; btn.disabled = false; }
+      });
+      rzp.open();
+
+    } catch (error) {
+      console.error('Purchase error:', error);
+      alert(error.message || 'Something went wrong. Please try again.');
+      if (btn) { btn.innerHTML = originalText; btn.disabled = false; }
+    }
+  }
+
   document.addEventListener('DOMContentLoaded', initPage);
 </script>
+
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 
 {% endblock %}

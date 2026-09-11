@@ -141,7 +141,7 @@ class Course(models.Model):
 
     title = models.CharField(max_length=200)
     slug = models.SlugField(unique=True)
-    category = models.ForeignKey(CourseCategory, on_delete=models.PROTECT, related_name='courses')
+    category = models.ForeignKey(CourseCategory, on_delete=models.SET_NULL, null=True, blank=True, related_name='courses')
     delivery_mode = models.CharField(max_length=20, choices=DELIVERY_MODES, default='hybrid')
     description = models.TextField(blank=True)
     thumbnail = models.ImageField(upload_to='course_thumbs/', null=True, blank=True, validators=[validate_image_extension])
@@ -669,7 +669,6 @@ class CourseReview(models.Model):
         verbose_name = 'Course Review'
         verbose_name_plural = 'Course Reviews'
         ordering = ['-created_at']
-        unique_together = ('course', 'student')
 
     def __str__(self):
         return f"{self.student.username} - {self.course.title} ({self.rating}★)"

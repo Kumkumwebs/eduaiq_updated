@@ -8,6 +8,7 @@ from .models import Invoice, InvoiceItem, FeeCollection, Transaction
 from accounts.models import User
 import json
 import uuid
+import os
 
 
 @login_required
@@ -354,30 +355,40 @@ def create_razorpay_order_api(request):
             return JsonResponse({'status': 'error', 'message': 'Invalid amount'}, status=400)
         
         amount_in_paise = int(amount * 100)
-        order_id = f"order_{uuid.uuid4().hex[:14]}"
         
-        key_id = getattr(settings, 'RAZORPAY_KEY_ID', 'rzp_test_eduaiq12345')
-        key_secret = getattr(settings, 'RAZORPAY_KEY_SECRET', 'test_secret_eduaiq12345')
+        key_id = os.environ.get('RAZORPAY_KEY_ID') or getattr(settings, 'RAZORPAY_KEY_ID', 'rzp_test_TWImAIRe0FF8t1')
+        key_secret = os.environ.get('RAZORPAY_KEY_SECRET') or getattr(settings, 'RAZORPAY_KEY_SECRET', 'PQFfVlYUE5ivlFor2taiVJu0')
         
-        try:
-            import razorpay
-            if key_id and key_secret and not key_id.startswith('rzp_test_eduaiq'):
+        order_id = None
+        is_real_order = False
+
+        if key_id and key_secret and not key_id.startswith('rzp_test_eduaiq'):
+            try:
+                import razorpay
                 client = razorpay.Client(auth=(key_id, key_secret))
                 order = client.order.create({
                     'amount': amount_in_paise,
                     'currency': 'INR',
+                    'receipt': f"rcpt_{uuid.uuid4().hex[:10]}",
                     'payment_capture': 1
                 })
-                order_id = order['id']
-        except Exception:
-            pass
+                if order and 'id' in order:
+                    order_id = order['id']
+                    is_real_order = True
+            except Exception as e:
+                print("Razorpay order creation error:", e)
+
+        if not order_id:
+            order_id = f"order_{uuid.uuid4().hex[:14]}"
+            is_real_order = False
 
         return JsonResponse({
             'status': 'success',
             'order_id': order_id,
             'amount': amount_in_paise,
             'currency': 'INR',
-            'key_id': key_id
+            'key_id': key_id,
+            'is_real_order': is_real_order
         })
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)}, status=400)

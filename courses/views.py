@@ -96,8 +96,8 @@ def serialize_course(c, detailed=False, request=None):
             'name': c.category.name,
             'slug': c.category.slug,
             'color_code': c.category.color_code,
-        },
-        'category_name': c.category.name,
+        } if c.category else None,
+        'category_name': c.category.name if c.category else 'General',
         'delivery_mode': c.delivery_mode,
         'description': c.description,
         'author': c.author or 'EduAiQ Editorial Team',
@@ -331,12 +331,6 @@ def category_list(request):
         else:
             exclude_books = not _is_staff(request.user)
         qs = get_allowed_categories_for_user(request.user, exclude_books=exclude_books)
-        if not qs.exists():
-            CourseCategory.objects.get_or_create(
-                name='General Education',
-                defaults={'slug': 'general-education', 'description': 'Default course category', 'is_active': True}
-            )
-            qs = get_allowed_categories_for_user(request.user, exclude_books=exclude_books)
         return JsonResponse({
             'count': qs.count(),
             'results': [serialize_category(c) for c in qs]
@@ -371,11 +365,8 @@ def category_detail(request, pk):
         return JsonResponse({'error': 'Forbidden'}, status=403)
 
     if request.method == 'DELETE':
-        try:
-            category.delete()
-            return JsonResponse({'success': True})
-        except dj_models.ProtectedError:
-            return JsonResponse({'error': 'Cannot delete category because it has active courses associated with it.'}, status=400)
+        category.delete()
+        return JsonResponse({'success': True})
 
     form = CourseCategoryForm(_body(request), instance=category)
     if form.is_valid():
@@ -393,20 +384,25 @@ def course_list(request):
     if request.method == 'GET':
         category = request.GET.get('category')
         exclude_param = request.GET.get('exclude_books')
-        if exclude_param is not None:
+        only_books_param = request.GET.get('only_books')
+        type_param = request.GET.get('type')
+
+        only_books = (type_param == 'book' or only_books_param == 'true' or category == 'ai-books')
+        if only_books:
+            exclude_books = False
+        elif exclude_param is not None:
             exclude_books = (exclude_param.lower() == 'true')
         else:
-            exclude_books = (category != 'ai-books')
+            exclude_books = True
 
-        qs = get_allowed_courses_for_user(request.user, exclude_books=exclude_books)
+        only_allowed = (request.GET.get('only_allowed') == 'true')
+        qs = get_allowed_courses_for_user(request.user, exclude_books=exclude_books, only_books=only_books, only_allowed=only_allowed)
 
         if category:
             if str(category).isdigit():
                 qs = qs.filter(category_id=int(category))
             else:
                 qs = qs.filter(dj_models.Q(category__slug__iexact=category) | dj_models.Q(category__name__iexact=category))
-        elif exclude_books:
-            qs = qs.exclude(category__slug='ai-books')
 
         # ------------------------------------------------------------------
         # Public-safe view filter (NEW)
@@ -1592,13 +1588,11 @@ def course_reviews(request, slug):
             rating = int(data.get('rating', 5))
             comment = data.get('comment', '').strip()
 
-            review, created = CourseReview.objects.update_or_create(
+            review = CourseReview.objects.create(
                 course=course,
                 student=request.user,
-                defaults={
-                    'rating': max(1, min(5, rating)),
-                    'comment': comment
-                }
+                rating=max(1, min(5, rating)),
+                comment=comment
             )
             return JsonResponse({
                 'success': True,

@@ -156,7 +156,7 @@
   /* ── Load Books ── */
   async function loadAiBooks() {
     const searchVal = document.getElementById('adminBookSearch').value.trim();
-    let url = `${API_BASE_URL}/courses/courses/?category=${AI_BOOKS_CATEGORY_SLUG}`;
+    let url = `${API_BASE_URL}/courses/courses/?only_books=true&only_allowed=true`;
     if (searchVal) url += `&q=${encodeURIComponent(searchVal)}`;
 
     try {

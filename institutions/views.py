@@ -77,6 +77,54 @@ def _form_errors(form):
     return {field: errs for field, errs in form.errors.items()}
 
 
+def _parse_course_ids(request, body):
+    """
+    Safely extract and parse course_ids from request (POST/PATCH body or QueryDict getlist).
+    Handles single ints, lists, comma-separated strings, and JSON arrays.
+    """
+    res = []
+    if hasattr(request, 'POST') and request.POST.getlist('course_ids'):
+        raw_list = request.POST.getlist('course_ids')
+        for item in raw_list:
+            if isinstance(item, str) and (item.startswith('[') or item.startswith('{')):
+                try:
+                    parsed = json.loads(item)
+                    if isinstance(parsed, list):
+                        res.extend(parsed)
+                    elif str(parsed).isdigit():
+                        res.append(int(parsed))
+                except Exception:
+                    pass
+            elif str(item).strip().isdigit():
+                res.append(int(item))
+
+    if not res:
+        course_ids = body.get('course_ids') if isinstance(body, dict) else None
+        if isinstance(course_ids, str):
+            try:
+                parsed = json.loads(course_ids)
+                if isinstance(parsed, list):
+                    res.extend(parsed)
+                elif str(parsed).isdigit():
+                    res.append(int(parsed))
+            except Exception:
+                res.extend([c.strip() for c in course_ids.split(',') if c.strip().isdigit()])
+        elif isinstance(course_ids, (list, tuple, set)):
+            res.extend(course_ids)
+        elif isinstance(course_ids, int):
+            res.append(course_ids)
+
+    final_ids = []
+    for x in res:
+        try:
+            val = int(x)
+            if val not in final_ids:
+                final_ids.append(val)
+        except (ValueError, TypeError):
+            continue
+    return final_ids
+
+
 def _bind_form_for_update(form_class, instance, request, body):
     files = request.FILES or None
 
@@ -307,10 +355,10 @@ def institution_list(request):
         qs = Institution.objects.all().order_by('-created_at')
 
         if request.user.is_authenticated:
-            is_admin = getattr(request.user, 'is_superuser', False) or getattr(request.user, 'role', '') in ['admin', 'superadmin']
+            is_admin = getattr(request.user, 'is_superuser', False) or getattr(request.user, 'role', '') in ['admin', 'superadmin', 'staff']
             if not is_admin:
                 from django.db.models import Q
-                qs = qs.filter(Q(assigned_employee=request.user) | Q(created_by=request.user))
+                qs = qs.filter(Q(admin_user=request.user) | Q(assigned_employee=request.user) | Q(created_by=request.user))
 
         inst_type = request.GET.get('type')
         if inst_type:
@@ -453,28 +501,46 @@ def student_list(request, institution_pk=None):
     if request.method == 'GET':
         qs = Student.objects.select_related('user', 'institution', 'batch')
 
-        # Restrict student list for Teacher accounts
+        # Restrict student list for non-admin accounts (Institution Admin, Teacher, etc.)
         if request.user.is_authenticated:
             user_role = (getattr(request.user, 'role', '') or '').lower().strip()
-            if user_role in ['teacher', 'faculty']:
-                emp_prof = getattr(request.user, 'employee_profile', None)
-                teacher_dept = emp_prof.department.name if (emp_prof and emp_prof.department) else None
-                inst_ids = list(Institution.objects.filter(
-                    Q(admin_user=request.user) | Q(created_by=request.user) | Q(assigned_employee=request.user)
-                ).values_list('id', flat=True))
+            is_admin = getattr(request.user, 'is_superuser', False) or getattr(request.user, 'is_staff', False) or user_role in ['admin', 'superadmin', 'super_admin', 'staff']
 
-                t_filter = Q()
-                if inst_ids:
-                    t_filter |= Q(institution_id__in=inst_ids)
-                if teacher_dept:
-                    t_filter |= Q(class_grade__icontains=teacher_dept)
+            if not is_admin:
+                if user_role in ['institution', 'institution_admin', 'school', 'college', 'coaching']:
+                    user_inst = Institution.objects.filter(
+                        Q(admin_user=request.user) | Q(created_by=request.user) | Q(assigned_employee=request.user)
+                    ).first()
+                    if user_inst:
+                        qs = qs.filter(institution=user_inst)
+                    else:
+                        qs = qs.none()
+                elif user_role in ['teacher', 'faculty']:
+                    emp_prof = getattr(request.user, 'employee_profile', None)
+                    teacher_dept = emp_prof.department.name if (emp_prof and emp_prof.department) else None
+                    inst_ids = list(Institution.objects.filter(
+                        Q(admin_user=request.user) | Q(created_by=request.user) | Q(assigned_employee=request.user)
+                    ).values_list('id', flat=True))
 
-                if inst_ids or teacher_dept:
-                    qs = qs.filter(t_filter)
-                else:
+                    if not inst_ids and emp_prof and emp_prof.reporting_manager:
+                        mgr_insts = list(Institution.objects.filter(admin_user=emp_prof.reporting_manager).values_list('id', flat=True))
+                        if mgr_insts:
+                            inst_ids.extend(mgr_insts)
+
+                    t_filter = Q()
+                    if inst_ids:
+                        t_filter |= Q(institution_id__in=inst_ids)
+                    if teacher_dept:
+                        t_filter |= Q(class_grade__icontains=teacher_dept)
+
                     school_name = getattr(request.user, 'school_name', '')
                     if school_name:
-                        qs = qs.filter(Q(institution__name__icontains=school_name) | Q(class_grade__icontains=school_name))
+                        t_filter |= Q(institution__name__icontains=school_name) | Q(class_grade__icontains=school_name)
+
+                    if t_filter:
+                        qs = qs.filter(t_filter)
+                    else:
+                        qs = qs.none()
 
         if institution:
             qs = qs.filter(institution=institution)
@@ -597,22 +663,17 @@ def student_detail(request, pk):
                 if u_changed:
                     student.user.save()
 
-            # Sync course enrollments if course_ids passed
-            course_ids_raw = body.get('course_ids') or request.POST.get('course_ids')
-            if course_ids_raw is not None and student.user:
-                course_ids = course_ids_raw
-                if isinstance(course_ids, str):
-                    import json
-                    try: course_ids = json.loads(course_ids)
-                    except Exception: course_ids = [c for c in course_ids.split(',') if c.strip().isdigit()]
-                if isinstance(course_ids, list):
-                    from courses.models import Course, Enrollment
-                    Enrollment.objects.filter(student=student.user).exclude(course_id__in=course_ids).delete()
-                    for cid in course_ids:
-                        try:
-                            c_obj = Course.objects.get(id=int(cid))
-                            Enrollment.objects.get_or_create(student=student.user, course=c_obj, defaults={'covered_by_plan': True, 'amount_paid': 0})
-                        except Exception: pass
+            # Sync course enrollments if course_ids passed in request
+            if ('course_ids' in body or (hasattr(request, 'POST') and 'course_ids' in request.POST)) and student.user:
+                course_ids = _parse_course_ids(request, body)
+                from courses.models import Course, Enrollment
+                Enrollment.objects.filter(student=student.user).exclude(course_id__in=course_ids).delete()
+                for cid in course_ids:
+                    try:
+                        c_obj = Course.objects.get(id=cid)
+                        Enrollment.objects.get_or_create(student=student.user, course=c_obj, defaults={'covered_by_plan': True, 'amount_paid': 0})
+                    except Exception:
+                        pass
 
         except DjangoValidationError as e:
             return JsonResponse({'success': False, 'errors': e.message_dict}, status=400)
@@ -699,14 +760,7 @@ def create_institution_student(request):
     class_grade = data.get('class_grade', 'Class 10').strip()
     section = data.get('section', 'A').strip()
     academic_year = data.get('academic_year', '2026-27').strip()
-    course_ids = data.get('course_ids', [])
-
-    if isinstance(course_ids, str):
-        import json
-        try:
-            course_ids = json.loads(course_ids)
-        except Exception:
-            course_ids = [c for c in course_ids.split(',') if c.strip().isdigit()]
+    course_ids = _parse_course_ids(request, data)
 
     if not username or not password or not admission_no:
         return JsonResponse({'success': False, 'error': 'Username, Password, and Admission No are required.'}, status=400)

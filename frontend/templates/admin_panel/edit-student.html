@@ -270,6 +270,23 @@
       </div>
     </div>
 
+    <!-- Section 7: AI Books Access Checklist -->
+    <div class="col-lg-12">
+      <div class="shadow-1 radius-12 bg-base h-100 overflow-hidden border border-neutral-200">
+        <div class="card-header border-bottom bg-neutral-50 py-16 px-24" style="background-color: #faf5ff;">
+          <h6 class="text-lg fw-bold mb-0" style="color: #9333ea;"><i class="ri-book-open-line me-2"></i> Allow AI Books for Student</h6>
+          <span class="text-sm text-secondary-light">Check or uncheck allowed AI Book(s) the student has access to.</span>
+        </div>
+        <div class="card-body p-24">
+          <div id="aiBookChecklistContainer" class="row gy-3">
+            <div class="col-12 text-muted text-center py-4">
+              <i class="ri-loader-4-line ri-spin me-2"></i> Loading allowed AI Books...
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Actions -->
     <div class="col-lg-12 mt-24">
       <div class="d-flex align-items-center gap-16 justify-content-end">
@@ -378,40 +395,74 @@ $(document).ready(function() {
     });
   }
 
-  // Load Allowed Courses Checklist
+  // Load Allowed Courses & AI Books Checklist
   function loadAllowedCoursesChecklist(enrolledIds = []) {
-    const container = $('#courseChecklistContainer');
+    const courseContainer = $('#courseChecklistContainer');
+    const bookContainer = $('#aiBookChecklistContainer');
     const enrolledSet = new Set((enrolledIds || []).map(id => Number(id)));
 
     $.ajax({
-      url: `${API_BASE_URL}/courses/courses/?page_size=100`,
+      url: `${API_BASE_URL}/courses/courses/?exclude_books=false&page_size=100`,
       type: 'GET',
       xhrFields: { withCredentials: true },
       success: function(data) {
-        const courses = data.results || (Array.isArray(data) ? data : []);
-        if (courses.length === 0) {
-          container.html('<div class="col-12 text-muted text-center py-3">No courses available.</div>');
-          return;
-        }
-        let html = '';
-        courses.forEach(c => {
-          const isChecked = enrolledSet.has(Number(c.id)) ? 'checked' : '';
-          html += `
-            <div class="col-md-6 col-lg-4">
-              <div class="p-16 border radius-8 bg-neutral-50 d-flex align-items-center gap-12 hover-border-primary">
-                <input type="checkbox" class="form-check-input flex-shrink-0" name="course_ids" value="${c.id}" id="course_${c.id}" ${isChecked}>
-                <label for="course_${c.id}" class="form-check-label cursor-pointer mb-0 w-100">
-                  <span class="fw-bold text-dark d-block text-sm">${c.title}</span>
-                  <span class="text-xs text-secondary-light">${c.category_name || 'Course'} • ₹${c.price || 0}</span>
-                </label>
+        const allItems = data.results || (Array.isArray(data) ? data : []);
+
+        const isAiBook = c => {
+          const catName = (c.category_name || (c.category ? c.category.name : '') || '').toLowerCase();
+          const catSlug = (c.category_slug || (c.category ? c.category.slug : '') || '').toLowerCase();
+          const title = (c.title || '').toLowerCase();
+          return catSlug === 'ai-books' || catName.includes('ai book') || title.includes('ai book') || title.includes('ai-guide');
+        };
+
+        const regularCourses = allItems.filter(c => !isAiBook(c));
+        const aiBooks = allItems.filter(c => isAiBook(c));
+
+        if (regularCourses.length === 0) {
+          courseContainer.html('<div class="col-12 text-muted text-center py-3">No allowed courses available.</div>');
+        } else {
+          let html = '';
+          regularCourses.forEach(c => {
+            const isChecked = enrolledSet.has(Number(c.id)) ? 'checked' : '';
+            html += `
+              <div class="col-md-6 col-lg-4">
+                <div class="p-16 border radius-8 bg-neutral-50 d-flex align-items-center gap-12 hover-border-primary">
+                  <input type="checkbox" class="form-check-input flex-shrink-0" name="course_ids" value="${c.id}" id="course_${c.id}" ${isChecked}>
+                  <label for="course_${c.id}" class="form-check-label cursor-pointer mb-0 w-100">
+                    <span class="fw-bold text-dark d-block text-sm">${c.title}</span>
+                    <span class="text-xs text-secondary-light">${c.category_name || 'Course'} • ₹${c.price || 0}</span>
+                  </label>
+                </div>
               </div>
-            </div>
-          `;
-        });
-        container.html(html);
+            `;
+          });
+          courseContainer.html(html);
+        }
+
+        if (aiBooks.length === 0) {
+          bookContainer.html('<div class="col-12 text-muted text-center py-3">No allowed AI Books available.</div>');
+        } else {
+          let html = '';
+          aiBooks.forEach(c => {
+            const isChecked = enrolledSet.has(Number(c.id)) ? 'checked' : '';
+            html += `
+              <div class="col-md-6 col-lg-4">
+                <div class="p-16 border radius-8 bg-neutral-50 d-flex align-items-center gap-12 hover-border-primary" style="border-color: #e9d5ff; background-color: #faf5ff;">
+                  <input type="checkbox" class="form-check-input flex-shrink-0" name="course_ids" value="${c.id}" id="book_${c.id}" ${isChecked}>
+                  <label for="book_${c.id}" class="form-check-label cursor-pointer mb-0 w-100">
+                    <span class="fw-bold text-dark d-block text-sm"><i class="ri-book-read-line me-1" style="color: #9333ea;"></i> ${c.title}</span>
+                    <span class="text-xs text-secondary-light">${c.category_name || 'AI Book'} • ₹${c.price || 0}</span>
+                  </label>
+                </div>
+              </div>
+            `;
+          });
+          bookContainer.html(html);
+        }
       },
       error: function() {
-        container.html('<div class="col-12 text-danger text-center py-3">Failed to load courses. Please check connection.</div>');
+        courseContainer.html('<div class="col-12 text-danger text-center py-3">Failed to load courses. Please check connection.</div>');
+        bookContainer.html('<div class="col-12 text-danger text-center py-3">Failed to load AI Books. Please check connection.</div>');
       }
     });
   }

@@ -150,8 +150,34 @@
         <!-- Systematic Logo-Matched Header Action Buttons -->
         <div class="header-btn d-inline-flex align-items-center">
           {% if user.is_authenticated %}
-          <a href="/my-learning/" class="btn-theme-yellow">STUDENT LOGIN</a>
-          <a href="/admin-panel/logout/" class="btn-theme-navy ms-2">LOGOUT <i class="fas fa-sign-out-alt ms-1"></i></a>
+          <div class="user-account-dropdown-container position-relative d-inline-block">
+            <button class="btn-theme-yellow border-0 d-inline-flex align-items-center gap-2 user-account-btn" type="button" id="userHeaderBtn" onclick="toggleUserAccountMenu(event)" style="cursor: pointer;">
+              <i class="fas fa-user-circle fs-5"></i>
+              <span>MY ACCOUNT</span>
+              <i class="fas fa-chevron-down ms-1" style="font-size: 11px;"></i>
+            </button>
+            <div class="user-account-menu shadow-lg border-0 rounded-4 py-2" id="userAccountMenu">
+              <div class="px-3 py-2 border-bottom mb-1 bg-light rounded-top-4">
+                <div class="fw-bold text-dark text-truncate small" style="max-width: 180px;">{{ user.get_full_name|default:user.username }}</div>
+                <div class="text-muted" style="font-size: 11px;">{{ user.email|default:"Registered User" }}</div>
+              </div>
+              <a class="account-menu-item py-2 px-3 fw-semibold text-dark d-flex align-items-center gap-2" href="/my-learning/">
+                <i class="fas fa-graduation-cap text-warning me-1"></i> My Learning & Dashboard
+              </a>
+              <a class="account-menu-item py-2 px-3 fw-semibold text-dark d-flex align-items-center gap-2" href="/edit-profile/">
+                <i class="fas fa-user-edit text-primary me-1"></i> Edit Profile
+              </a>
+              {% if user.is_superuser or user.role == 'admin' %}
+              <a class="account-menu-item py-2 px-3 fw-semibold text-dark d-flex align-items-center gap-2" href="/admin-panel/dashboard/">
+                <i class="fas fa-chart-line text-success me-1"></i> Admin Dashboard
+              </a>
+              {% endif %}
+              <div class="dropdown-divider my-1 border-top"></div>
+              <a class="account-menu-item py-2 px-3 fw-semibold text-danger d-flex align-items-center gap-2" href="/admin-panel/logout/">
+                <i class="fas fa-sign-out-alt me-1"></i> Logout
+              </a>
+            </div>
+          </div>
           {% else %}
           <a href="/login/" class="btn-theme-yellow">LOGIN</a>
           <a href="/register/" class="btn-theme-navy ms-2">REGISTER TO JOIN US <i
@@ -616,21 +642,68 @@
     }
   }
 
-  @media screen and (max-width: 480px) {
-    .header-logo-img {
-      max-height: 38px !important;
-      height: 38px !important;
-    }
-    .header-btn {
-      gap: 4px;
-    }
-    .header-btn .btn-theme-yellow {
-      padding: 5px 9px !important;
-      font-size: 10px !important;
-    }
-    .header-btn .btn-theme-navy {
-      padding: 5px 9px !important;
-      font-size: 10px !important;
-    }
+  /* User Account Dropdown Styles */
+  .user-account-dropdown-container {
+    position: relative;
+    display: inline-block;
+  }
+
+  .user-account-menu {
+    display: none;
+    position: absolute;
+    top: 100%;
+    right: 0;
+    min-width: 230px;
+    background: #ffffff;
+    box-shadow: 0 12px 36px rgba(15, 23, 42, 0.22) !important;
+    border-radius: 16px !important;
+    z-index: 999999 !important;
+    margin-top: 8px;
+    overflow: hidden;
+  }
+
+  .user-account-dropdown-container:hover .user-account-menu,
+  .user-account-menu.show {
+    display: block !important;
+    animation: headerDropdownFadeIn 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  @keyframes headerDropdownFadeIn {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .account-menu-item {
+    display: flex;
+    align-items: center;
+    padding: 10px 16px;
+    color: #1e293b !important;
+    font-size: 13.5px;
+    text-decoration: none !important;
+    transition: all 0.2s ease;
+  }
+
+  .account-menu-item:hover {
+    background: #f8fafc !important;
+    color: #fd7e14 !important;
+    padding-left: 20px;
   }
 </style>
+
+<script>
+  function toggleUserAccountMenu(e) {
+    if (e) e.stopPropagation();
+    var menu = document.getElementById('userAccountMenu');
+    if (menu) {
+      menu.classList.toggle('show');
+    }
+  }
+
+  document.addEventListener('click', function(e) {
+    var container = document.querySelector('.user-account-dropdown-container');
+    var menu = document.getElementById('userAccountMenu');
+    if (menu && container && !container.contains(e.target)) {
+      menu.classList.remove('show');
+    }
+  });
+</script>

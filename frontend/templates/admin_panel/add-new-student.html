@@ -282,6 +282,23 @@
       </div>
     </div>
 
+    <!-- Section 7: AI Books Access Checklist -->
+    <div class="col-lg-12">
+      <div class="shadow-1 radius-12 bg-base h-100 overflow-hidden border border-neutral-200">
+        <div class="card-header border-bottom bg-neutral-50 py-16 px-24" style="background-color: #faf5ff;">
+          <h6 class="text-lg fw-bold mb-0" style="color: #9333ea;"><i class="ri-book-open-line me-2"></i> Allow AI Books for Student</h6>
+          <span class="text-sm text-secondary-light">Select which allowed AI Book(s) the student will have access to after login.</span>
+        </div>
+        <div class="card-body p-24">
+          <div id="aiBookChecklistContainer" class="row gy-3">
+            <div class="col-12 text-muted text-center py-4">
+              <i class="ri-loader-4-line ri-spin me-2"></i> Loading allowed AI Books...
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Submit Action -->
     <div class="col-12 text-end">
       <button type="submit" class="btn btn-primary-600 px-32 py-12 radius-8 fw-bold">
@@ -557,30 +574,61 @@
   }
 
   async function loadAllowedCoursesChecklist() {
-    const container = document.getElementById('courseChecklistContainer');
+    const courseContainer = document.getElementById('courseChecklistContainer');
+    const bookContainer = document.getElementById('aiBookChecklistContainer');
     try {
-      const response = await fetch(`${API_BASE_URL}/courses/courses/`, { credentials: 'include' });
+      const response = await fetch(`${API_BASE_URL}/courses/courses/?exclude_books=false&page_size=100`, { credentials: 'include' });
       const data = await response.json();
-      const courses = data.results || [];
+      const allItems = data.results || [];
 
-      if (courses.length === 0) {
-        container.innerHTML = `<div class="col-12 text-muted text-center py-3">No allowed courses found for your institution.</div>`;
-        return;
+      const isAiBook = c => {
+        const catName = (c.category_name || (c.category ? c.category.name : '') || '').toLowerCase();
+        const catSlug = (c.category_slug || (c.category ? c.category.slug : '') || '').toLowerCase();
+        const title = (c.title || '').toLowerCase();
+        return catSlug === 'ai-books' || catName.includes('ai book') || title.includes('ai book') || title.includes('ai-guide');
+      };
+
+      const regularCourses = allItems.filter(c => !isAiBook(c));
+      const aiBooks = allItems.filter(c => isAiBook(c));
+
+      if (courseContainer) {
+        if (regularCourses.length === 0) {
+          courseContainer.innerHTML = `<div class="col-12 text-muted text-center py-3">No allowed courses found for your institution.</div>`;
+        } else {
+          courseContainer.innerHTML = regularCourses.map(c => `
+            <div class="col-md-6 col-lg-4">
+              <div class="form-check p-16 border radius-8 bg-neutral-50 d-flex align-items-center gap-3">
+                <input class="form-check-input flex-shrink-0" type="checkbox" name="course_ids" value="${c.id}" id="course_${c.id}" checked>
+                <label class="form-check-label w-100 cursor-pointer mb-0" for="course_${c.id}">
+                  <span class="fw-bold text-dark d-block text-sm">${c.title}</span>
+                  <span class="text-xs text-secondary-light">${c.category_name || 'Course'} • ₹${c.price}</span>
+                </label>
+              </div>
+            </div>
+          `).join('');
+        }
       }
 
-      container.innerHTML = courses.map(c => `
-        <div class="col-md-6 col-lg-4">
-          <div class="form-check p-16 border radius-8 bg-neutral-50 d-flex align-items-center gap-3">
-            <input class="form-check-input flex-shrink-0" type="checkbox" name="course_ids" value="${c.id}" id="course_${c.id}" checked>
-            <label class="form-check-label w-100 cursor-pointer mb-0" for="course_${c.id}">
-              <span class="fw-bold text-dark d-block text-sm">${c.title}</span>
-              <span class="text-xs text-secondary-light">${c.category_name || 'Course'} • ₹${c.price}</span>
-            </label>
-          </div>
-        </div>
-      `).join('');
+      if (bookContainer) {
+        if (aiBooks.length === 0) {
+          bookContainer.innerHTML = `<div class="col-12 text-muted text-center py-3">No allowed AI Books found for your institution.</div>`;
+        } else {
+          bookContainer.innerHTML = aiBooks.map(c => `
+            <div class="col-md-6 col-lg-4">
+              <div class="form-check p-16 border radius-8 bg-neutral-50 d-flex align-items-center gap-3" style="border-color: #e9d5ff; background-color: #faf5ff;">
+                <input class="form-check-input flex-shrink-0" type="checkbox" name="course_ids" value="${c.id}" id="book_${c.id}" checked>
+                <label class="form-check-label w-100 cursor-pointer mb-0" for="book_${c.id}">
+                  <span class="fw-bold text-dark d-block text-sm"><i class="ri-book-read-line me-1" style="color: #9333ea;"></i> ${c.title}</span>
+                  <span class="text-xs text-secondary-light">${c.category_name || 'AI Book'} • ₹${c.price}</span>
+                </label>
+              </div>
+            </div>
+          `).join('');
+        }
+      }
     } catch (e) {
-      container.innerHTML = `<div class="col-12 text-danger text-center py-3">Failed to load courses.</div>`;
+      if (courseContainer) courseContainer.innerHTML = `<div class="col-12 text-danger text-center py-3">Failed to load courses.</div>`;
+      if (bookContainer) bookContainer.innerHTML = `<div class="col-12 text-danger text-center py-3">Failed to load AI Books.</div>`;
     }
   }
 

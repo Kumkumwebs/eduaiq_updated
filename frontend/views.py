@@ -11,7 +11,7 @@ from django.contrib.auth import authenticate, login, logout, get_user_model
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_http_methods
 
-from courses.models import Course, CourseCategory, Quiz, QuizAttempt, Enrollment
+from courses.models import Course, CourseCategory, CourseModule, Lesson, Quiz, QuizAttempt, Enrollment
 from courses.utils import (
     get_allowed_courses_for_user,
     get_allowed_categories_for_user,
@@ -55,10 +55,12 @@ def handler500(request):
 def home(request):
     """Homepage - Featured categories, courses, team members, and latest blog posts"""
     categories = get_allowed_categories_for_user(request.user)
+    courses = get_allowed_courses_for_user(request.user, exclude_books=True)[:6]
     team_members = TeamMember.objects.filter(is_active=True).order_by('order', 'created_at')[:4]
     latest_blogs = BlogPost.objects.filter(status='published').select_related('category', 'author_team_member').order_by('-published_at')[:3]
     return render(request, "index.html", {
         'categories': categories,
+        'courses': courses,
         'team_members': team_members,
         'mentors': team_members,
         'latest_blogs': latest_blogs,
@@ -84,9 +86,11 @@ def courses(request):
             Q(description__icontains=search_q) |
             Q(category__name__icontains=search_q)
         ).distinct()
+    from django.conf import settings
     return render(request, "courses.html", {
         'courses': allowed_courses,
-        'search_query': search_q
+        'search_query': search_q,
+        'razorpay_key_id': settings.RAZORPAY_KEY_ID,
     })
 
 
@@ -165,8 +169,9 @@ def ai_books(request):
     """
     now = timezone.now()
 
+    books_q = Q(category__slug=AI_BOOKS_CATEGORY_SLUG) | Q(category__name__icontains='AI Book') | Q(title__icontains='AI-GUIDE') | Q(title__icontains='AI Book')
     base_qs = (
-        Course.objects.filter(category__slug=AI_BOOKS_CATEGORY_SLUG)
+        Course.objects.filter(books_q)
         .select_related("category")
         .annotate(student_count=Count("enrollments", distinct=True))
     )
@@ -380,21 +385,23 @@ def my_learning(request):
     }
 
     # ---------------------------------------------------------
-    # Institution Allotted Courses & AI Books
+    # Assigned Courses & AI Books (Direct Enrollments + Institution Allotment)
     # ---------------------------------------------------------
-    allowed_courses_qs = get_allowed_courses_for_user(request.user, exclude_books=False)
+    from courses.utils import get_user_institution
 
-    assigned_courses = list(allowed_courses_qs.exclude(category__slug=AI_BOOKS_CATEGORY_SLUG).select_related('category'))
-    assigned_books = list(allowed_courses_qs.filter(category__slug=AI_BOOKS_CATEGORY_SLUG).select_related('category'))
+    student_institution = get_user_institution(request.user)
 
-    # BUGFIX: previously this pulled in *every* Enrollment the student had,
-    # regardless of whether the course/book was actually assigned to them
-    # (get_allowed_courses_for_user), and merged it straight into the
-    # "assigned" lists shown on the dashboard. That let un-assigned
-    # courses/books (e.g. a stray or self-created Enrollment row) leak
-    # through to the student. Enrollment is now only used to fetch
-    # progress data for courses that are already in the assigned set --
-    # it never adds new courses/books to what the student sees.
+    enrolled_course_ids = set(Enrollment.objects.filter(student=request.user).values_list('course_id', flat=True))
+
+    if enrolled_course_ids:
+        allowed_courses_qs = Course.objects.filter(id__in=enrolled_course_ids, status='published').distinct().select_related('category')
+    else:
+        allowed_courses_qs = Course.objects.none()
+
+    books_q = Q(category__slug=AI_BOOKS_CATEGORY_SLUG) | Q(category__name__icontains='AI Book') | Q(title__icontains='AI-GUIDE') | Q(title__icontains='AI Book')
+    assigned_courses = list(allowed_courses_qs.exclude(books_q))
+    assigned_books = list(allowed_courses_qs.filter(books_q))
+
     assigned_course_ids = {c.id for c in assigned_courses}
     assigned_book_ids = {b.id for b in assigned_books}
 
@@ -570,6 +577,7 @@ def dashboard(request):
     """
     Real-World Multi-Role Dashboard - Renders specific portals for Main Admin, Institution Admin, Student, and Employee.
     """
+    from django.db.models import Q
     user = request.user
     is_admin = _is_main_admin(user)
 
@@ -582,7 +590,7 @@ def dashboard(request):
     if not is_admin:
         if user_role in ['institution', 'college', 'school', 'institute', 'partner']:
             is_institution = True
-        elif user_role in ['student', 'parent']:
+        elif user_role in ['student', 'parent'] or hasattr(user, 'student_profile'):
             is_student = True
         elif user_role in ['teacher', 'faculty']:
             is_teacher = True
@@ -654,14 +662,15 @@ def dashboard(request):
         'institution_obj': None,
         'students_count': 0,
         'courses_count': 0,
+        'books_count': 0,
         'batches_count': 0,
         'students_list': [],
         'allowed_courses_list': [],
+        'allowed_books_list': [],
     }
     if is_institution or is_admin:
         try:
             from institutions.models import Institution, Student
-            from django.db.models import Q
             if is_institution:
                 inst = Institution.objects.filter(Q(admin_user=user) | Q(created_by=user)).first()
             else:
@@ -671,30 +680,82 @@ def dashboard(request):
                 inst_data['institution_obj'] = inst
                 students_qs = Student.objects.filter(institution=inst)
                 inst_data['students_count'] = students_qs.count()
-                inst_data['courses_count'] = inst.allowed_courses.count() if inst.allowed_courses.exists() else Course.objects.count()
+                
+                if is_institution:
+                    course_ids = set(inst.allowed_courses.values_list('id', flat=True))
+                    cat_ids = set(inst.allowed_categories.values_list('id', flat=True))
+                    if course_ids or cat_ids:
+                        allowed_qs = Course.objects.filter(
+                            Q(id__in=course_ids) | Q(category_id__in=cat_ids)
+                        ).distinct()
+                    else:
+                        allowed_qs = Course.objects.none()
+                else:
+                    allowed_qs = Course.objects.all()
+
+                books_q = Q(category__slug='ai-books') | Q(category__name__icontains='AI Book') | Q(title__icontains='AI-GUIDE') | Q(title__icontains='AI Book')
+                courses_qs = allowed_qs.exclude(books_q)
+                books_qs = allowed_qs.filter(books_q)
+
+                inst_data['courses_count'] = courses_qs.count()
+                inst_data['books_count'] = books_qs.count()
                 inst_data['batches_count'] = inst.batches.count()
                 inst_data['students_list'] = list(students_qs.select_related('user', 'batch')[:10])
-                inst_data['allowed_courses_list'] = list(inst.allowed_courses.select_related('category')[:8]) if inst.allowed_courses.exists() else list(Course.objects.select_related('category')[:8])
+                inst_data['allowed_courses_list'] = list(courses_qs.select_related('category')[:8])
+                inst_data['allowed_books_list'] = list(books_qs.select_related('category')[:8])
         except Exception:
             pass
 
     student_data = {
         'student_profile': None,
         'enrolled_courses_count': 0,
+        'enrolled_books_count': 0,
         'olympiads_count': 0,
         'attempts_count': 0,
         'recent_registrations': [],
         'enrolled_courses': [],
+        'enrolled_books': [],
     }
-    if is_student or is_admin:
+    if is_student or is_admin or hasattr(user, 'student_profile'):
         try:
             from institutions.models import Student
+            from courses.utils import get_user_institution, get_allowed_courses_for_user
+
             st_prof = getattr(user, 'student_profile', None) or Student.objects.filter(user=user).first()
             student_data['student_profile'] = st_prof
-            student_data['enrolled_courses'] = list(Course.objects.filter(status='published')[:6])
-            student_data['enrolled_courses_count'] = len(student_data['enrolled_courses'])
-            student_data['olympiads_count'] = Olympiad.objects.filter(is_active=True).count()
-            student_data['attempts_count'] = OlympiadAttempt.objects.filter(student=user).count()
+
+            from courses.models import Enrollment
+            student_inst = get_user_institution(user)
+            enrolled_course_ids = set(Enrollment.objects.filter(student=user).values_list('course_id', flat=True))
+
+            if student_inst:
+                inst_course_ids = set(student_inst.allowed_courses.values_list('id', flat=True))
+                inst_cat_ids = set(student_inst.allowed_categories.values_list('id', flat=True))
+                inst_courses_qs = Course.objects.filter(
+                    Q(id__in=inst_course_ids) | Q(category_id__in=inst_cat_ids),
+                    status='published'
+                )
+                allowed_courses_qs = Course.objects.filter(
+                    Q(id__in=enrolled_course_ids) | Q(id__in=inst_courses_qs.values_list('id', flat=True)),
+                    status='published'
+                ).distinct().select_related('category')
+            elif enrolled_course_ids:
+                allowed_courses_qs = Course.objects.filter(id__in=enrolled_course_ids, status='published').distinct().select_related('category')
+            elif is_admin:
+                allowed_courses_qs = Course.objects.filter(status='published').select_related('category')
+            else:
+                allowed_courses_qs = Course.objects.none()
+
+            books_q = Q(category__slug='ai-books') | Q(category__name__icontains='AI Book') | Q(title__icontains='AI-GUIDE') | Q(title__icontains='AI Book')
+            st_courses = list(allowed_courses_qs.exclude(books_q))
+            st_books = list(allowed_courses_qs.filter(books_q))
+
+            student_data['enrolled_courses'] = st_courses[:6]
+            student_data['enrolled_courses_count'] = len(st_courses)
+            student_data['enrolled_books'] = st_books[:6]
+            student_data['enrolled_books_count'] = len(st_books)
+            student_data['olympiads_count'] = OlympiadRegistration.objects.filter(student=user).count()
+            student_data['attempts_count'] = OlympiadAttempt.objects.filter(registration__student=user).count()
             student_data['recent_registrations'] = list(OlympiadRegistration.objects.filter(student=user).select_related('olympiad')[:5])
         except Exception:
             pass
@@ -722,16 +783,28 @@ def dashboard(request):
                 teacher_data['subject'] = getattr(user, 'department', '') or "Academic Faculty"
                 teacher_data['assigned_class'] = "All Classes"
 
-            teacher_data['total_students'] = Student.objects.count()
-            teacher_data['recent_students'] = list(Student.objects.select_related('user', 'batch').order_by('-created_at')[:8])
-            teacher_data['assigned_courses'] = list(Course.objects.filter(status='published').select_related('category')[:6])
-            teacher_data['assigned_courses_count'] = Course.objects.count()
+            inst = get_user_institution(user)
+            if inst:
+                students_qs = Student.objects.filter(institution=inst)
+            else:
+                students_qs = Student.objects.none()
+
+            teacher_data['total_students'] = students_qs.count()
+            teacher_data['recent_students'] = list(students_qs.select_related('user', 'batch').order_by('-created_at')[:8])
+
+            allowed_courses_qs = get_allowed_courses_for_user(user, exclude_books=True, only_allowed=True)
+            teacher_data['assigned_courses'] = list(allowed_courses_qs.select_related('category')[:6])
+            teacher_data['assigned_courses_count'] = allowed_courses_qs.count()
             teacher_data['today_attendance'] = Attendance.objects.filter(user=user, date=date.today()).first()
             teacher_data['pending_wfh'] = WFHRequest.objects.filter(user=user, status='pending').count()
         except Exception:
             pass
 
-    total_students = User.objects.filter(role='student').count() or User.objects.count()
+    try:
+        from institutions.models import Student
+        total_students = Student.objects.count()
+    except Exception:
+        total_students = User.objects.filter(role__iexact='student').count()
     colleges_count = 0
     schools_count = 0
     active_institutions = 0
@@ -760,16 +833,19 @@ def dashboard(request):
         total_institutions = 0
         recent_institutions = []
 
-    total_courses = Course.objects.count()
-    published_courses = Course.objects.filter(status='published').count()
+    books_q = Q(category__slug='ai-books') | Q(category__name__icontains='AI Book') | Q(title__icontains='AI-GUIDE') | Q(title__icontains='AI Book')
+    regular_courses_qs = Course.objects.exclude(books_q)
+    total_books = Course.objects.filter(books_q).count()
+    total_courses = regular_courses_qs.count()
+    published_courses = regular_courses_qs.filter(status='published').count()
     draft_courses = max(0, total_courses - published_courses)
-    recent_courses = Course.objects.select_related('category').order_by('-created_at')[:6] if total_courses else []
+    recent_courses = regular_courses_qs.select_related('category').order_by('-created_at')[:6] if total_courses else []
     
     # Top Course Categories for Graph
     cat_names = []
     cat_counts = []
-    for cat in CourseCategory.objects.all()[:6]:
-        cnt = Course.objects.filter(category=cat).count()
+    for cat in CourseCategory.objects.exclude(slug='ai-books')[:6]:
+        cnt = regular_courses_qs.filter(category=cat).count()
         if cnt > 0 or len(cat_names) < 4:
             cat_names.append(cat.name[:18])
             cat_counts.append(cnt)
@@ -810,6 +886,7 @@ def dashboard(request):
         'pending_institutions': pending_institutions,
         'recent_institutions': recent_institutions,
         'total_courses': total_courses,
+        'total_books': total_books,
         'published_courses': published_courses,
         'draft_courses': draft_courses,
         'recent_courses': recent_courses,
@@ -964,6 +1041,16 @@ def admin_page_router(request, page_name):
 
     is_admin = _is_main_admin(request.user)
     user_role = (getattr(request.user, 'role', '') or '').lower().strip()
+    
+    crm_pages = [
+        'crm-dashboard', 'leads', 'add-new-lead', 'student-inquiries', 'add-student-inquiry',
+        'opportunities', 'add-opportunity', 'institution-list', 'employee-attendance', 'wfh-requests',
+        'expense-list', 'expense-head', 'transaction', 'employee-list'
+    ]
+
+    if user_role in ['student', 'parent'] and page_name in crm_pages:
+        return redirect('admin_panel')
+
     if (not is_admin or user_role in ['teacher', 'faculty']) and page_name in admin_only_pages:
         return redirect('admin_panel')
 
@@ -1581,6 +1668,24 @@ def institution_login_view(request):
 
         if user is not None:
             login(request, user)
+            # Ensure an Institution record exists so Super Admin can manage & allow courses for this institution
+            if getattr(user, 'role', '') in ['institution', 'institution_admin', 'school', 'college', 'coaching']:
+                from institutions.models import Institution
+                itype = 'school' if user.role == 'school' else ('college' if user.role == 'college' else 'coaching')
+                iname = user.get_full_name() or user.username
+                Institution.objects.get_or_create(
+                    admin_user=user,
+                    defaults={
+                        'name': iname,
+                        'type': itype,
+                        'created_by': user,
+                        'status': 'pending',
+                        'address': 'Registered via Website',
+                        'city': 'Online',
+                        'state': 'India',
+                        'phone': getattr(user, 'phone', '') or ''
+                    }
+                )
             return redirect(_get_redirect_url_for_user(request, user))
 
         return render(request, 'institution_login.html', {
@@ -1657,6 +1762,25 @@ def register_submit(request):
     user = User(username=username, email=email, phone=phone, role=role)
     user.set_password(password1)
     user.save()
+
+    # If registered as an Institution / School / College, create an Institution entry for admin approval & course allotment
+    if role in ['institution', 'institution_admin', 'school', 'college', 'coaching']:
+        from institutions.models import Institution
+        itype = 'school' if role == 'school' else ('college' if role == 'college' else 'coaching')
+        iname = user.get_full_name() or username
+        Institution.objects.get_or_create(
+            admin_user=user,
+            defaults={
+                'name': iname,
+                'type': itype,
+                'created_by': user,
+                'status': 'pending',
+                'address': 'Registered via Website',
+                'city': 'Online',
+                'state': 'India',
+                'phone': phone
+            }
+        )
 
     return redirect('login')   # ✅ register -> login page
 

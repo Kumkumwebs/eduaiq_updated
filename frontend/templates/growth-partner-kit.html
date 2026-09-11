@@ -7,7 +7,7 @@
 
 {% block content %}
 <section class="inner-banner-wrap">
-<div class="inner-baner-container" style="background-image: url({% static 'assets/img/educator-img12.jpg' %});">
+<div class="inner-baner-container" style="background-image: url({% static 'assets/img/blog-default-indian.jpg' %});">
 <div class="container">
 <div class="inner-banner-content">
 <h1 class="inner-title">Growth Partner Kit</h1>
@@ -296,28 +296,32 @@
 </div>
 <div class="course-form">
 <h3>Request The Growth Partner Kit</h3>
-<div class="course-field">
-<div class="row">
-<div class="col-sm-6">
-<input name="name" placeholder="Your Name.." type="text"/>
+<div id="kitSuccessMsg" class="alert alert-success d-none mb-3 radius-12 p-3 text-sm fw-semibold" style="background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0;">
+    <i class="fas fa-check-circle me-2"></i><span id="kitSuccessText">Thank you! Your request for the Growth Partner Kit has been received. Our team will contact you shortly.</span>
 </div>
-<div class="col-sm-6">
-<input name="email" placeholder="Your Email.." type="email"/>
-</div>
-<div class="col-sm-6">
-<input name="phone" placeholder="Your Phone.." type="text"/>
-</div>
-<div class="col-sm-6">
-<input name="city" placeholder="City / Region Of Interest.." type="text"/>
-</div>
-<div class="col-sm-12">
-<input name="background" placeholder="Current business / background (optional).." type="text"/>
-</div>
-<div class="col-sm-12">
-<button class="button-round-secondary" type="submit">SEND ME THE KIT</button>
-</div>
-</div>
-</div>
+<form id="growthKitForm" class="course-field">
+    {% csrf_token %}
+    <div class="row">
+        <div class="col-sm-6 mb-3">
+            <input name="name" id="kitName" placeholder="Your Name *" type="text" required />
+        </div>
+        <div class="col-sm-6 mb-3">
+            <input name="email" id="kitEmail" placeholder="Your Email *" type="email" required />
+        </div>
+        <div class="col-sm-6 mb-3">
+            <input name="phone" id="kitPhone" placeholder="Your Phone *" type="text" required />
+        </div>
+        <div class="col-sm-6 mb-3">
+            <input name="city" id="kitCity" placeholder="City / Region Of Interest *" type="text" required />
+        </div>
+        <div class="col-sm-12 mb-3">
+            <input name="background" id="kitBackground" placeholder="Current business / background (optional).." type="text" />
+        </div>
+        <div class="col-sm-12">
+            <button class="button-round-secondary" id="kitSubmitBtn" type="submit">SEND ME THE KIT</button>
+        </div>
+    </div>
+</form>
 </div>
 </div>
 </div>
@@ -357,4 +361,75 @@
 </div>
 </div>
 </section>
+{% endblock %}
+
+{% block js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const form = document.getElementById('growthKitForm');
+  if (form) {
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      const btn = document.getElementById('kitSubmitBtn');
+      const successMsg = document.getElementById('kitSuccessMsg');
+      
+      const name = document.getElementById('kitName').value.trim();
+      const email = document.getElementById('kitEmail').value.trim();
+      const phone = document.getElementById('kitPhone').value.trim();
+      const city = document.getElementById('kitCity').value.trim();
+      const background = document.getElementById('kitBackground') ? document.getElementById('kitBackground').value.trim() : '';
+
+      if (!name || !email) {
+        alert('Please fill in required fields');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerText = 'Sending...';
+
+      const payload = {
+        name: name,
+        email: email,
+        phone: phone,
+        city: city,
+        business_background: background,
+        subject: 'Growth Partner Kit Request',
+        source: 'growth_partner_kit'
+      };
+
+      fetch('/api/crm/leads/submit/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || ''
+        },
+        body: JSON.stringify(payload)
+      })
+      .then(res => res.json())
+      .then(data => {
+        btn.disabled = false;
+        btn.innerText = 'SEND ME THE KIT';
+        if (data.success) {
+          showSuccessModal(
+            'Kit Requested Successfully!',
+            data.message || 'Thank you! Your request for the Growth Partner Kit has been received. Our team will contact you shortly.'
+          );
+          if (successMsg) {
+            document.getElementById('kitSuccessText').innerText = data.message || 'Thank you! Your request for the Growth Partner Kit has been received. Our team will contact you shortly.';
+            successMsg.classList.remove('d-none');
+          }
+          form.reset();
+        } else {
+          alert(data.message || 'Error submitting request. Please try again.');
+        }
+      })
+      .catch(err => {
+        btn.disabled = false;
+        btn.innerText = 'SEND ME THE KIT';
+        alert('Network error. Please try again.');
+      });
+    });
+  }
+});
+</script>
 {% endblock %}

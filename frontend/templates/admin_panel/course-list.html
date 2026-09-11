@@ -7,14 +7,14 @@
 {% csrf_token %}
 <div class="breadcrumb d-flex flex-wrap align-items-center justify-content-between gap-3 mb-24">
   <div>
-    <h1 class="fw-semibold mb-4 h6 text-primary-light">Course List</h1>
+    <h1 id="pageTitle" class="fw-semibold mb-4 h6 text-primary-light">Course List</h1>
     <div>
       <a class="text-secondary-light hover-text-primary hover-underline" href="/admin-panel/dashboard/">Dashboard</a>
-      <span class="text-secondary-light">/ Course List</span>
+      <span id="pageBreadcrumb" class="text-secondary-light">/ Course List</span>
     </div>
   </div>
   {% if user.is_superuser or user.role == 'admin' or user.role == 'superadmin' %}
-  <a class="btn btn-primary-600 d-flex align-items-center gap-6" href="/admin-panel/courses/add/">
+  <a id="addBtn" class="btn btn-primary-600 d-flex align-items-center gap-6" href="/admin-panel/courses/add/">
     <span class="d-flex text-md">
       <i class="ri-add-large-line"></i>
     </span>
@@ -37,7 +37,7 @@
       <table class="table table-bordered align-middle" id="coursesTable">
         <thead class="table-light">
           <tr>
-            <th>Thumbnail</th>
+            <th id="thThumb">Thumbnail</th>
             <th>Title</th>
             <th>Category</th>
             <th>Delivery Mode</th>
@@ -50,7 +50,7 @@
         <tbody id="coursesTableBody">
           <tr>
             <td colspan="8" class="text-center py-5 text-muted">
-              <i class="ri-loader-4-line ri-spin align-middle me-2"></i> Loading courses...
+              <i class="ri-loader-4-line ri-spin align-middle me-2"></i> Loading data...
             </td>
           </tr>
         </tbody>
@@ -62,10 +62,33 @@
 <script>
   const API_BASE_URL = window.location.origin;
   const IS_SUPERADMIN = {% if user.is_superuser or user.role == 'admin' or user.role == 'superadmin' %}true{% else %}false{% endif %};
+  const urlParams = new URLSearchParams(window.location.search);
+  const isBookView = urlParams.get('type') === 'book';
+
+  document.addEventListener('DOMContentLoaded', () => {
+    if (isBookView) {
+      document.title = "Allowed AI Books - EduAIQ Admin";
+      const pageTitle = document.getElementById('pageTitle');
+      const pageBreadcrumb = document.getElementById('pageBreadcrumb');
+      const searchInput = document.getElementById('adminCourseSearch');
+      const addBtn = document.getElementById('addBtn');
+      const thThumb = document.getElementById('thThumb');
+
+      if (pageTitle) pageTitle.textContent = 'Allowed AI Books';
+      if (pageBreadcrumb) pageBreadcrumb.textContent = '/ Allowed AI Books';
+      if (searchInput) searchInput.placeholder = 'Search AI books...';
+      if (thThumb) thThumb.textContent = 'Cover';
+      if (addBtn) {
+        addBtn.href = '/admin-panel/books/add/';
+        addBtn.innerHTML = `<span class="d-flex text-md"><i class="ri-add-large-line"></i></span> Add AI Book`;
+      }
+    }
+    loadAdminCourses();
+  });
 
   async function loadAdminCourses() {
     const searchVal = document.getElementById('adminCourseSearch').value.trim();
-    let url = `${API_BASE_URL}/courses/courses/?exclude_books=true`;
+    let url = isBookView ? `${API_BASE_URL}/courses/courses/?type=book&only_allowed=true` : `${API_BASE_URL}/courses/courses/?exclude_books=true&only_allowed=true`;
     if (searchVal) {
       url += `&q=${encodeURIComponent(searchVal)}`;
     }
@@ -77,35 +100,41 @@
       const tbody = document.getElementById('coursesTableBody');
 
       if (results.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="8" class="text-center py-4 text-muted">No courses found.</td></tr>`;
+        const itemType = isBookView ? 'AI books' : 'courses';
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center py-4 text-muted">No ${itemType} found.</td></tr>`;
         return;
       }
 
       tbody.innerHTML = results.map(c => `
         <tr>
           <td>
-            <img src="${c.thumbnail || 'https://via.placeholder.com/80x50'}" alt="${c.title}" style="width: 80px; height: 50px; object-fit: cover; border-radius: 4px;">
+            <img src="${c.thumbnail || 'https://via.placeholder.com/80x50'}" alt="${c.title}" style="width: ${isBookView ? '60px' : '80px'}; height: ${isBookView ? '80px' : '50px'}; object-fit: cover; border-radius: 4px;">
           </td>
           <td class="fw-semibold text-dark">${c.title}</td>
           <td>${c.category_name || 'N/A'}</td>
-          <td class="text-capitalize">${c.delivery_mode.replace('_', ' ')}</td>
+          <td class="text-capitalize">${(c.delivery_mode || '').replace('_', ' ')}</td>
           <td class="fw-bold">₹${c.price}</td>
           <td>
             <span class="badge ${getStatusBadgeClass(c.status)}">
-              ${c.status.replace('_', ' ')}
+              ${(c.status || '').replace('_', ' ')}
             </span>
           </td>
-          <td>v${c.version}</td>
+          <td>v${c.version || 1}</td>
           <td>
             <div class="d-flex gap-2">
               <a class="btn btn-sm btn-outline-info" href="/admin-panel/courses/details/?slug=${c.slug}">
                 <i class="ri-eye-line"></i> View
               </a>
+              ${c.pdf_file ? `
+              <a class="btn btn-sm btn-success text-white" href="/book-reader/${c.slug}/" target="_blank">
+                <i class="ri-book-read-line"></i> Read Book
+              </a>
+              ` : ''}
               ${IS_SUPERADMIN ? `
               <a class="btn btn-sm btn-outline-primary" href="/admin-panel/courses/edit/?slug=${c.slug}">
                 <i class="ri-edit-line"></i> Edit
               </a>
-              <button class="btn btn-sm btn-outline-danger" onclick="deleteCourse('${c.slug}', '${c.title}')">
+              <button class="btn btn-sm btn-outline-danger" onclick="deleteCourse('${c.slug}', '${c.title.replace(/'/g, "\\'")}')">
                 <i class="ri-delete-bin-line"></i> Delete
               </button>
               ` : ''}
@@ -117,7 +146,7 @@
       console.error(e);
       document.getElementById('coursesTableBody').innerHTML = `
         <tr>
-          <td colspan="8" class="text-center py-4 text-danger">Failed to load courses from API.</td>
+          <td colspan="8" class="text-center py-4 text-danger">Failed to load from API.</td>
         </tr>
       `;
     }

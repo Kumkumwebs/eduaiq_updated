@@ -78,6 +78,12 @@
           <span>My Allowed Courses</span>
         </a>
       </li>
+      <li>
+        <a href="/admin-panel/courses/?type=book">
+          <i class="ri-book-read-line"></i>
+          <span>My Allowed AI Books</span>
+        </a>
+      </li>
       <li class="dropdown">
         <a href="javascript:void(0)">
           <i class="ri-graduation-cap-line"></i>
@@ -138,6 +144,40 @@
         <a href="/admin-panel/wfh-requests/">
           <i class="ri-calendar-close-line"></i>
           <span>Leave & WFH Requests</span>
+        </a>
+      </li>
+      <li>
+        <a href="/admin-panel/view-profile/">
+          <i class="ri-user-3-line"></i>
+          <span>My Profile</span>
+        </a>
+      {% elif request.user.role == 'student' or request.user.role == 'parent' %}
+      <!-- STUDENT PORTAL RESTRICTED MENU -->
+      <li class="sidebar-menu-header" style="padding: 12px 20px 6px; font-size: 11px; font-weight: 700; color: #10b981; text-transform: uppercase; letter-spacing: 0.8px; list-style: none;">
+        Student Learning Portal
+      </li>
+      <li>
+        <a href="/admin-panel/dashboard/">
+          <i class="ri-home-4-line"></i>
+          <span>Dashboard</span>
+        </a>
+      </li>
+      <li>
+        <a href="/admin-panel/courses/">
+          <i class="ri-book-open-line"></i>
+          <span>My Enrolled Courses</span>
+        </a>
+      </li>
+      <li>
+        <a href="/admin-panel/courses/?type=book">
+          <i class="ri-book-read-line"></i>
+          <span>AI Books</span>
+        </a>
+      </li>
+      <li>
+        <a href="/my-learning/">
+          <i class="ri-graduation-cap-line"></i>
+          <span>My Learning & Exams</span>
         </a>
       </li>
       <li>
@@ -612,6 +652,18 @@
               Leave & WFH Requests
             </a>
           </li>
+          <li>
+            <a href="/admin-panel/employee-attendance/">
+              <i class="ri-circle-fill circle-icon w-auto"></i>
+              Attendance & Salary Count
+            </a>
+          </li>
+          <li>
+            <a href="/admin-panel/payroll/">
+              <i class="ri-circle-fill circle-icon w-auto"></i>
+              Payroll & Salary Slips
+            </a>
+          </li>
         </ul>
       </li>
 
@@ -627,6 +679,12 @@
             <a href="/admin-panel/expense-list/">
               <i class="ri-circle-fill circle-icon w-auto"></i>
               Expense Records
+            </a>
+          </li>
+          <li>
+            <a href="/admin-panel/expense-list/?head=Company+Billing">
+              <i class="ri-circle-fill circle-icon w-auto"></i>
+              Company Billing Expenses
             </a>
           </li>
           <li>

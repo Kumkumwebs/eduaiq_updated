@@ -51,7 +51,7 @@
 </div>
 
 <!-- 2. Attendance Summary Statistics -->
-<div class="row row-cols-xxl-5 row-cols-lg-5 row-cols-sm-2 row-cols-1 g-3 mb-24">
+<div class="row row-cols-xxl-6 row-cols-lg-3 row-cols-sm-2 row-cols-1 g-3 mb-24">
   <div class="col">
     <div class="card p-16 radius-12 border bg-base shadow-sm h-100" style="border-bottom: 3px solid #22c55e !important;">
       <div class="d-flex align-items-center justify-content-between mb-8">
@@ -109,6 +109,18 @@
         <h4 class="fw-bold mb-0 text-neutral-800" id="statHolidayCount" style="font-size: 22px;">0</h4>
       </div>
       <span class="fw-medium text-secondary-light text-xs">Holidays</span>
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="card p-16 radius-12 border bg-base shadow-sm h-100" style="border-bottom: 3px solid #487fff !important;">
+      <div class="d-flex align-items-center justify-content-between mb-8">
+        <span class="w-36-px h-36-px bg-primary-50 text-primary-600 radius-8 d-flex justify-content-center align-items-center text-lg">
+          <i class="ri-money-dollar-circle-line"></i>
+        </span>
+        <h4 class="fw-bold mb-0 text-primary-600" id="statSalaryCount" style="font-size: 18px;">₹0</h4>
+      </div>
+      <span class="fw-medium text-secondary-light text-xs" id="statSalaryMeta">Salary Count (Attendance)</span>
     </div>
   </div>
 </div>
@@ -859,6 +871,12 @@ $(document).ready(function() {
             $('#statHalfDayCount').text(resp.summary.half_day || 0);
             $('#statLateCount').text(resp.summary.late || 0);
             $('#statHolidayCount').text(resp.summary.holiday || 0);
+            if (resp.summary.calculated_salary !== undefined) {
+              var calcSal = Number(resp.summary.calculated_salary).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+              var payDays = resp.summary.payable_days || 0;
+              $('#statSalaryCount').text('₹' + calcSal);
+              $('#statSalaryMeta').text(`Salary Count (${payDays} Payable Days)`);
+            }
           }
         } else {
           $('#attendanceMatrixBody').html(`<tr><td colspan="32" class="text-center py-20 text-secondary-light">No attendance records found.</td></tr>`);

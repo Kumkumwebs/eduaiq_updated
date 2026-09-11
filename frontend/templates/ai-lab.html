@@ -205,25 +205,33 @@
     /* Fact Section / Call to Action */
     .home-fact-section {
         padding: 80px 0 !important;
-        background-color: #ffffff !important;
     }
-    .fact-section-title {
-        color: #0f172a !important;
+    .home-fact-section .fact-section-title {
+        color: #ffffff !important;
         font-weight: 800 !important;
+        font-size: 2.2rem !important;
     }
-    .fact-list ul li {
-        color: #334155 !important;
+    .home-fact-section .fact-section-info {
+        color: #f1f5f9 !important;
+        font-size: 1.1rem !important;
+        line-height: 1.6 !important;
+        opacity: 0.95 !important;
+    }
+    .home-fact-section .fact-list ul li {
+        color: #f8fafc !important;
         font-weight: 600 !important;
+        font-size: 1rem !important;
     }
-    .fact-list ul li::before {
-        color: #ea580c !important;
+    .home-fact-section .fact-list ul li::before {
+        color: #f97316 !important;
+        font-weight: 900 !important;
     }
 </style>
 {% endblock %}
 
 {% block content %}
 <section class="inner-banner-wrap">
-<div class="inner-baner-container" style="background-image: url({% static 'assets/img/educator-img12.jpg' %});">
+<div class="inner-baner-container" style="background-image: url({% static 'assets/img/blog-default-indian.jpg' %});">
 <div class="container">
 <div class="inner-banner-content">
 <h1 class="inner-title">AI Lab</h1>
@@ -420,22 +428,26 @@
 </div>
 <div class="course-form">
 <h3>Get Free Access! Book Your AI Lab Seat Now.</h3>
-<div class="course-field">
-<div class="row g-2">
-<div class="col-sm-6">
-<input name="name" placeholder="Your Name.." type="text"/>
+<div id="aiLabSuccessMsg" class="alert alert-success d-none mb-3 radius-12 p-3 text-sm fw-semibold" style="background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0;">
+    <i class="fas fa-check-circle me-2"></i><span id="aiLabSuccessText">Thank you! Your seat booking inquiry has been received. Our team will contact you shortly.</span>
 </div>
-<div class="col-sm-6">
-<input name="email" placeholder="Your Email.." type="email"/>
-</div>
-<div class="col-sm-7">
-<input name="subject" placeholder="Your Subject / Interest.." type="text"/>
-</div>
-<div class="col-sm-5">
-<button class="button-round-secondary w-100" type="submit">BOOK SEAT</button>
-</div>
-</div>
-</div>
+<form id="aiLabSeatForm" class="course-field">
+    {% csrf_token %}
+    <div class="row g-2">
+        <div class="col-sm-6 mb-3">
+            <input name="name" id="aiLabName" placeholder="Your Name *" type="text" required />
+        </div>
+        <div class="col-sm-6 mb-3">
+            <input name="email" id="aiLabEmail" placeholder="Your Email *" type="email" required />
+        </div>
+        <div class="col-sm-7 mb-3">
+            <input name="subject" id="aiLabSubject" placeholder="Your Subject / Interest *" type="text" required />
+        </div>
+        <div class="col-sm-5">
+            <button class="button-round-secondary w-100" id="aiLabSubmitBtn" type="submit">BOOK SEAT</button>
+        </div>
+    </div>
+</form>
 </div>
 </div>
 </div>
@@ -451,27 +463,94 @@
 <div class="title-divider"></div>
 <h2 class="fact-section-title">Ready To Start Building With AI?</h2>
 <p class="fact-section-info">
-                                    Whether you're a student exploring your first AI project or an institution
-                                    looking to bring an AI Lab to your campus, EduAiQ gives you a ready-to-go path.
+                                    Whether you're a student building your first model, a developer expanding into ML,
+                                    or an institution setting up AI infrastructure — AI Lab is where you start.
                                 </p>
 <div class="fact-list">
 <ul>
-<li>No prior coding experience required to get started.</li>
-<li>Institution-ready lab setup with admin dashboards.</li>
-<li>Flexible plans for individual learners and campuses.</li>
+<li><i class="fas fa-check-circle me-2" style="color: #fd7e14;"></i> Instant browser access — zero local environment setup required.</li>
+<li><i class="fas fa-check-circle me-2" style="color: #fd7e14;"></i> Integrated with AI Books and Skill Development tracks.</li>
+<li><i class="fas fa-check-circle me-2" style="color: #fd7e14;"></i> Institution management tools available for schools and colleges.</li>
 </ul>
 </div>
 <div class="service-btn">
-<a class="button-round-secondary" href="https://rzp.io/rzp/azhKQ22i" target="_blank">REGISTER TO JOIN US</a>
+<a class="button-round-secondary" href="/register/">REGISTER TO
+                                        JOIN US</a>
 </div>
 </div>
 </div>
 <div class="col-lg-5">
 <figure class="figure-round-border">
-<img alt="EduAiQ Smart Learning Classroom" src="{% static 'assets/img/eduaiq-smart-classroom.jpg' %}"/>
+<img alt="Indian students coding in AI Lab" src="{% static 'assets/img/ai-lab-indian.jpg' %}"/>
 </figure>
 </div>
 </div>
 </div>
 </section>
+{% endblock %}
+
+{% block js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const form = document.getElementById('aiLabSeatForm');
+  if (form) {
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      const btn = document.getElementById('aiLabSubmitBtn');
+      const successMsg = document.getElementById('aiLabSuccessMsg');
+      
+      const name = document.getElementById('aiLabName').value.trim();
+      const email = document.getElementById('aiLabEmail').value.trim();
+      const subject = document.getElementById('aiLabSubject').value.trim();
+
+      if (!name || !email) {
+        alert('Please fill in required fields');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerText = 'Booking...';
+
+      const payload = {
+        name: name,
+        email: email,
+        subject: subject || 'AI Lab Free Access',
+        source: 'ai_lab'
+      };
+
+      fetch('/api/crm/leads/submit/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || ''
+        },
+        body: JSON.stringify(payload)
+      })
+      .then(res => res.json())
+      .then(data => {
+        btn.disabled = false;
+        btn.innerText = 'BOOK SEAT';
+        if (data.success) {
+          showSuccessModal(
+            'Seat Booked Successfully!',
+            data.message || 'Thank you! Your seat booking inquiry has been received. Our team will contact you shortly.'
+          );
+          if (successMsg) {
+            document.getElementById('aiLabSuccessText').innerText = data.message || 'Thank you! Your seat booking inquiry has been received. Our team will contact you shortly.';
+            successMsg.classList.remove('d-none');
+          }
+          form.reset();
+        } else {
+          alert(data.message || 'Error submitting request. Please try again.');
+        }
+      })
+      .catch(err => {
+        btn.disabled = false;
+        btn.innerText = 'BOOK SEAT';
+        alert('Network error. Please try again.');
+      });
+    });
+  }
+});
+</script>
 {% endblock %}

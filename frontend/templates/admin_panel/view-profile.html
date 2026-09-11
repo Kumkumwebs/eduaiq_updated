@@ -80,10 +80,10 @@
           <div class="pb-16 border-bottom d-flex align-items-center justify-content-between gap-20">
             <h3 class="h6 text-primary-light text-lg mb-0 fw-semibold"><i class="ri-user-settings-line me-2 text-primary-600"></i> Account Information</h3>
             <div class="d-flex align-items-center gap-12">
-              {% if request.user.is_superuser or request.user.role == 'admin' %}
-              <a href="/admin-panel/add-new-employee/?user_id={% if emp_profile %}{{ emp_profile.user.id }}{% else %}{{ profile_user.id }}{% endif %}&emp_id={% if emp_profile %}{{ emp_profile.id }}{% else %}{{ profile_user.id }}{% endif %}" class="btn btn-sm btn-primary-600 radius-8 px-16 py-6 text-sm d-inline-flex align-items-center gap-2 text-white font-semibold">
+              {% if profile_user == request.user or request.user.is_superuser or request.user.role == 'admin' %}
+              <button type="button" class="btn btn-sm btn-primary-600 radius-8 px-16 py-6 text-sm d-inline-flex align-items-center gap-2 text-white font-semibold" data-bs-toggle="modal" data-bs-target="#editProfileModal">
                 <i class="ri-edit-line"></i> Edit Profile
-              </a>
+              </button>
               {% endif %}
               <span class="bg-success-100 text-success-600 px-16 py-6 radius-8 fw-medium text-sm d-inline-flex align-items-center gap-1">
                 <i class="ri-checkbox-circle-fill"></i> Active
@@ -241,6 +241,43 @@
                             <label class="form-label text-sm font-semibold mb-6">Contact Phone Number</label>
                             <input type="text" class="form-control radius-8" id="editPhone" value="{{ profile_user.phone|default:'' }}" placeholder="e.g. +91 9876543210">
                         </div>
+
+                        {% if is_student_user or student_profile %}
+                        <div class="col-6">
+                            <label class="form-label text-sm font-semibold mb-6">Class / Grade</label>
+                            <input type="text" class="form-control radius-8" id="editClassGrade" value="{{ student_profile.class_grade|default:'' }}" placeholder="e.g. Class 10">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label text-sm font-semibold mb-6">Father's Name</label>
+                            <input type="text" class="form-control radius-8" id="editFatherName" value="{{ student_profile.father_name|default:'' }}" placeholder="Father Name">
+                        </div>
+                        {% endif %}
+
+                        {% if is_inst_user or institution_obj %}
+                        <div class="col-12">
+                            <label class="form-label text-sm font-semibold mb-6">Institution Name</label>
+                            <input type="text" class="form-control radius-8" id="editInstName" value="{{ institution_obj.name|default:profile_user.username }}">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label text-sm font-semibold mb-6">City</label>
+                            <input type="text" class="form-control radius-8" id="editCity" value="{{ institution_obj.city|default:'' }}">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label text-sm font-semibold mb-6">State</label>
+                            <input type="text" class="form-control radius-8" id="editState" value="{{ institution_obj.state|default:'' }}">
+                        </div>
+                        {% endif %}
+
+                        {% if emp_profile or profile_user.employee_profile %}
+                        <div class="col-6">
+                            <label class="form-label text-sm font-semibold mb-6">Qualification</label>
+                            <input type="text" class="form-control radius-8" id="editQualification" value="{{ profile_user.qualification|default:'' }}" placeholder="e.g. B.Tech / M.Sc">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label text-sm font-semibold mb-6">Experience</label>
+                            <input type="text" class="form-control radius-8" id="editExperience" value="{{ profile_user.experience|default:'' }}" placeholder="e.g. 5 Years">
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
                 <div class="modal-footer border-top px-24 py-16 bg-base">
@@ -331,7 +368,14 @@
             first_name: $('#editFirstName').val(),
             last_name: $('#editLastName').val(),
             email: $('#editEmail').val(),
-            phone: $('#editPhone').val()
+            phone: $('#editPhone').val(),
+            class_grade: $('#editClassGrade').length ? $('#editClassGrade').val() : undefined,
+            father_name: $('#editFatherName').length ? $('#editFatherName').val() : undefined,
+            institution_name: $('#editInstName').length ? $('#editInstName').val() : undefined,
+            city: $('#editCity').length ? $('#editCity').val() : undefined,
+            state: $('#editState').length ? $('#editState').val() : undefined,
+            qualification: $('#editQualification').length ? $('#editQualification').val() : undefined,
+            experience: $('#editExperience').length ? $('#editExperience').val() : undefined
         };
 
         $btn.prop('disabled', true).html('<i class="ri-loader-4-line spinner me-1"></i> Saving...');

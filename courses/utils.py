@@ -20,17 +20,66 @@ def get_user_institution(user):
     return inst
 
 
-def get_allowed_courses_for_user(user, exclude_books=True):
+def get_allowed_courses_for_user(user, exclude_books=True, only_books=False, only_allowed=False):
     """
-    Returns QuerySet of Course objects so every user (guests, students, institution admins)
-    can browse and view the full course catalog on the main website.
-    Staff/Admins see all courses regardless of status.
+    Returns QuerySet of Course objects.
+    - If only_allowed=True (Admin Dashboard / My Enrolled Courses):
+        - Super Admin / Staff: All courses.
+        - Institution Users / Admins: ONLY courses allotted to their Institution.
+        - Students: ONLY courses they are enrolled in.
+    - If only_allowed=False (Public Website Catalog & Homepage for every login):
+        - Super Admin / Staff: All courses.
+        - Every User / Institution / Student / Visitor: All published courses (available for purchase on website).
     """
-    if user and user.is_authenticated and (user.is_superuser or user.is_staff or getattr(user, 'role', '') in ('admin', 'superadmin', 'super_admin', 'main_admin', 'staff')):
-        qs = Course.objects.all()
-    else:
+    if not user or not user.is_authenticated:
         qs = Course.objects.filter(status='published')
-    return qs.exclude(category__slug='ai-books') if exclude_books else qs
+    else:
+        user_role = (getattr(user, 'role', '') or '').lower().strip()
+        is_main_admin = user.is_superuser or user.is_staff or user_role in ('admin', 'superadmin', 'super_admin', 'main_admin', 'staff')
+
+        if is_main_admin:
+            qs = Course.objects.all()
+        elif only_allowed:
+            if user_role in ('institution', 'institution_admin', 'school', 'college', 'coaching'):
+                inst = get_user_institution(user)
+                if inst:
+                    allowed_course_ids = set(inst.allowed_courses.values_list('id', flat=True))
+                    allowed_cat_ids = set(inst.allowed_categories.values_list('id', flat=True))
+                    qs = Course.objects.filter(
+                        models.Q(id__in=allowed_course_ids) | models.Q(category_id__in=allowed_cat_ids)
+                    ).distinct()
+                else:
+                    qs = Course.objects.none()
+            elif user_role in ('teacher', 'faculty', 'educator', 'instructor'):
+                inst = get_user_institution(user)
+                assigned_qs = Course.objects.filter(created_by=user)
+                if inst:
+                    allowed_course_ids = set(inst.allowed_courses.values_list('id', flat=True))
+                    allowed_cat_ids = set(inst.allowed_categories.values_list('id', flat=True))
+                    inst_qs = Course.objects.filter(
+                        models.Q(id__in=allowed_course_ids) | models.Q(category_id__in=allowed_cat_ids)
+                    )
+                    qs = (inst_qs | assigned_qs).distinct()
+                else:
+                    qs = assigned_qs.distinct()
+            elif user_role == 'student' or hasattr(user, 'student_profile'):
+                from courses.models import Enrollment
+                enrolled_ids = set(Enrollment.objects.filter(student=user).values_list('course_id', flat=True))
+                if enrolled_ids:
+                    qs = Course.objects.filter(id__in=enrolled_ids, status='published').distinct()
+                else:
+                    qs = Course.objects.none()
+            else:
+                qs = Course.objects.none()
+        else:
+            qs = Course.objects.filter(status='published')
+
+    books_q = models.Q(category__slug='ai-books') | models.Q(category__name__icontains='AI Book') | models.Q(title__icontains='AI-GUIDE') | models.Q(title__icontains='AI Book')
+    if only_books:
+        return qs.filter(books_q)
+    elif exclude_books:
+        return qs.exclude(books_q)
+    return qs
 
 
 def get_allowed_categories_for_user(user, exclude_books=True):

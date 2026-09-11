@@ -7,7 +7,7 @@
 
 {% block content %}
 <section class="inner-banner-wrap">
-<div class="inner-baner-container" style="background-image: url({% static 'assets/img/educator-img12.jpg' %});">
+<div class="inner-baner-container" style="background-image: url({% static 'assets/img/blog-default-indian.jpg' %});">
 <div class="container">
 <div class="inner-banner-content">
 <h1 class="inner-title">Olympiad Registration Form</h1>
@@ -945,12 +945,11 @@
 
     async function openRazorpay(d, orderData, method, prefill) {
         const options = {
-            key: RAZORPAY_KEY,
+            key: orderData.key_id || RAZORPAY_KEY,
             amount: orderData.amount,
             currency: orderData.currency || 'INR',
             name: 'EduAiQ Olympiad',
             description: 'Registration: ' + d.subject_name + ' | ' + d.student_name,
-            order_id: orderData.order_id,
             prefill: prefill,
             notes: { student_name: d.student_name, grade: d.grade, school: d.school, city: d.city },
             theme: { color: '#fd7e14' },
@@ -1000,6 +999,10 @@
                 }
             }
         };
+
+        if (orderData.is_real_order && orderData.order_id) {
+            options.order_id = orderData.order_id;
+        }
 
         const rzp = new Razorpay(options);
         rzp.on('payment.failed', function(response) {

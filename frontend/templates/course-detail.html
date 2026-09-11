@@ -7,7 +7,7 @@
 {% block content %}
 
 <section class="inner-banner-wrap" id="courseBanner">
-  <div class="inner-baner-container" style="background-image: url({% static 'assets/img/educator-img12.jpg' %});">
+  <div class="inner-baner-container" style="background-image: url({% static 'assets/img/blog-default-indian.jpg' %});">
     <div class="container">
       <div class="inner-banner-content">
         <h1 class="inner-title" id="courseTitle">Loading...</h1>
@@ -1344,8 +1344,14 @@
 
       // 2. Load course details
       const response = await fetch(`${API_BASE_URL}/courses/courses/${courseSlug}/`, { credentials: 'same-origin' });
+      if (!response.ok) {
+        throw new Error(`Failed to load course (Status ${response.status})`);
+      }
       const data = await response.json();
-      const course = data.course;
+      const course = data.course || data;
+      if (!course) {
+        throw new Error('Invalid course data received');
+      }
       const isAccessible = course.is_accessible || false;
       const isLoggedIn = {% if user.is_authenticated %}true{% else %}false{% endif %};
 
@@ -1355,35 +1361,41 @@
         isEnrolled = true;
       }
 
-      document.getElementById('courseTitle').textContent = course.title;
-      document.getElementById('courseThumbnail').src = course.thumbnail || '/static/assets/img/educator-img30.jpg';
-      document.getElementById('courseDescription').textContent = course.description;
-      document.getElementById('coursePrice').textContent = `₹${course.price}`;
-      document.getElementById('courseLevel').textContent = course.level || 'Beginner';
-      document.getElementById('categoryName').textContent = course.category.name;
-      if (document.getElementById('categoryNameOverlay')) {
-        document.getElementById('categoryNameOverlay').textContent = course.category.name;
-      }
-      document.getElementById('instructorName').textContent = course.instructor?.username || 'N/A';
+      const setTxt = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = (val !== undefined && val !== null) ? val : '';
+      };
 
-      document.getElementById('sidebarPrice').textContent = `₹${course.price}`;
-      document.getElementById('sidebarDuration').textContent = `${course.duration_weeks} weeks`;
-      document.getElementById('sidebarLessons').textContent = `${course.total_lessons} Lessons`;
-      document.getElementById('sidebarStudents').textContent = `${course.total_students} Students`;
+      setTxt('courseTitle', course.title);
+      const thumbEl = document.getElementById('courseThumbnail');
+      if (thumbEl) thumbEl.src = course.thumbnail || '/static/assets/img/educator-img30.jpg';
+
+      setTxt('courseDescription', course.description);
+      setTxt('coursePrice', `₹${course.price}`);
+      setTxt('courseLevel', course.level || 'Beginner');
+
+      const catName = course.category?.name || course.category_name || 'General';
+      setTxt('categoryName', catName);
+      setTxt('categoryNameOverlay', catName);
+      setTxt('instructorName', course.instructor?.username || 'EduAiQ Team');
+
+      setTxt('sidebarPrice', `₹${course.price}`);
+      setTxt('sidebarDuration', `${course.duration_weeks || 4} weeks`);
+      setTxt('sidebarLessons', `${course.total_lessons || 0} Lessons`);
+      setTxt('sidebarStudents', `${course.total_students || 0} Students`);
       
+      setTxt('modulesCount', course.total_modules || 0);
+      setTxt('lessonsCount', course.total_lessons || 0);
+      setTxt('durationWeeks', course.duration_weeks || 4);
       
-      document.getElementById('modulesCount').textContent = course.total_modules;
-      document.getElementById('lessonsCount').textContent = course.total_lessons;
-      document.getElementById('durationWeeks').textContent = course.duration_weeks;
-      
-      document.getElementById('modulesIncludes').textContent = course.total_modules;
-      document.getElementById('lessonsIncludes').textContent = course.total_lessons;
-      document.getElementById('quizzesIncludes').textContent = course.quizzes?.length || 0;
+      setTxt('modulesIncludes', course.total_modules || 0);
+      setTxt('lessonsIncludes', course.total_lessons || 0);
+      setTxt('quizzesIncludes', course.quizzes?.length || 0);
 
       if (course.instructor) {
-        document.getElementById('instructorFullName').textContent = course.instructor.username;
-        document.getElementById('instructorEmail').textContent = `Email: ${course.instructor.email}`;
-        document.getElementById('instructorPhone').textContent = `Phone: ${course.instructor.phone}`;
+        setTxt('instructorFullName', course.instructor.username || 'EduAiQ Team');
+        setTxt('instructorEmail', `Email: ${course.instructor.email || 'info@eduaiq.co.in'}`);
+        setTxt('instructorPhone', `Phone: ${course.instructor.phone || '+91 8052350041'}`);
       }
 
       if (course.modules && course.modules.length > 0) {
@@ -1633,7 +1645,6 @@
       const data = await response.json();
       if (response.ok) {
         document.getElementById('reviewComment').value = '';
-        alert('Review submitted successfully!');
         loadReviews();
       } else {
         alert(data.error || 'Failed to submit review');
@@ -1916,7 +1927,6 @@
           currency: orderData.currency || 'INR',
           name: 'EduAiQ',
           description: 'Course Access: ' + course.title,
-          order_id: orderData.order_id,
           customer_id: orderData.customer_id || undefined,
           prefill: {
               name: prefill.name,
@@ -1975,6 +1985,10 @@
 
       if (method === 'upi' && prefill.vpa) {
           options.prefill.vpa = prefill.vpa;
+      }
+
+      if (orderData.is_real_order && orderData.order_id) {
+          options.order_id = orderData.order_id;
       }
 
       const rzp = new Razorpay(options);

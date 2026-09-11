@@ -128,7 +128,7 @@
 
   async function loadCourses() {
     try {
-      const response = await fetch(`${API_BASE_URL}/courses/courses/`);
+      const response = await fetch(`${API_BASE_URL}/courses/courses/?exclude_books=false`);
       const data = await response.json();
       const select = document.getElementById('courseSelect');
       const results = data.results || [];
@@ -136,7 +136,8 @@
       results.forEach(c => {
         const opt = document.createElement('option');
         opt.value = c.slug;
-        opt.textContent = c.title;
+        const modCount = c.total_modules || 0;
+        opt.textContent = `${c.title} (${modCount} module${modCount === 1 ? '' : 's'})`;
         select.appendChild(opt);
       });
 
@@ -145,6 +146,15 @@
       if (querySlug) {
         select.value = querySlug;
         await onCourseChange();
+      } else if (results.length > 0) {
+        const courseWithMods = results.find(c => (c.total_modules || 0) > 0) || results[0];
+        select.value = courseWithMods.slug;
+        await onCourseChange();
+        const modSelect = document.getElementById('moduleSelect');
+        if (modSelect.options.length > 1) {
+          modSelect.selectedIndex = 1;
+          onModuleChange();
+        }
       }
     } catch (e) {
       console.error(e);

@@ -1133,6 +1133,20 @@ def attendance_api(request):
                 'remarks': rec.remarks or ('Weekly Off' if rec.date.weekday() == 6 else 'On Time')
             })
 
+        basic_salary = 35000.0
+        emp_obj = getattr(user, 'employee_profile', None)
+        if emp_obj:
+            sal_val = getattr(emp_obj, 'basic_salary', None)
+            if not sal_val and hasattr(emp_obj, 'extra_metadata') and isinstance(emp_obj.extra_metadata, dict):
+                sal_val = emp_obj.extra_metadata.get('basic_salary') or emp_obj.extra_metadata.get('basicSalary')
+            if sal_val:
+                try: basic_salary = float(sal_val)
+                except: pass
+        
+        payable_days = present_count + late_count + wfh_count + holiday_count + (0.5 * half_day_count)
+        per_day_rate = round(basic_salary / 30.0, 2)
+        calculated_salary = round(per_day_rate * payable_days, 2)
+
         return JsonResponse({
             'status': 'success',
             'user_id': user.id,
@@ -1144,7 +1158,11 @@ def attendance_api(request):
                 'half_day': half_day_count,
                 'late': late_count,
                 'holiday': holiday_count,
-                'wfh': wfh_count
+                'wfh': wfh_count,
+                'basic_salary': basic_salary,
+                'payable_days': payable_days,
+                'per_day_rate': per_day_rate,
+                'calculated_salary': calculated_salary
             },
             'daily_records': daily_records,
             'attendance_matrix': matrix
@@ -1566,8 +1584,9 @@ def delete_employee_api(request, emp_id=None):
 @login_required
 @require_POST
 def update_profile_info_api(request):
-    """API to update logged-in user's profile details (first_name, last_name, email, phone)"""
+    """API to update logged-in user's profile details (first_name, last_name, email, phone, plus role-specific fields)"""
     try:
+        from institutions.models import Institution, Student
         data = _body(request)
         user = request.user
         
@@ -1581,14 +1600,45 @@ def update_profile_info_api(request):
         if last_name is not None:
             user.last_name = last_name
         if email:
-            # Check unique email excluding current user
             if User.objects.filter(email__iexact=email).exclude(pk=user.pk).exists():
                 return JsonResponse({'status': 'error', 'message': 'Email address is already in use by another account.'}, status=400)
             user.email = email
         if phone is not None:
             user.phone = phone
 
+        qualification = data.get('qualification')
+        if qualification is not None and hasattr(user, 'qualification'):
+            user.qualification = qualification.strip()
+        experience = data.get('experience')
+        if experience is not None and hasattr(user, 'experience'):
+            user.experience = experience.strip()
+
         user.save()
+
+        # Update Student Profile fields if provided
+        class_grade = data.get('class_grade')
+        father_name = data.get('father_name')
+        st_profile = getattr(user, 'student_profile', None) or Student.objects.filter(user=user).first()
+        if st_profile:
+            if class_grade is not None:
+                st_profile.class_grade = class_grade.strip()
+            if father_name is not None:
+                st_profile.father_name = father_name.strip()
+            st_profile.save()
+
+        # Update Institution fields if provided
+        inst_name = data.get('institution_name')
+        city = data.get('city')
+        state = data.get('state')
+        inst_obj = Institution.objects.filter(Q(admin_user=user) | Q(created_by=user)).first()
+        if inst_obj:
+            if inst_name:
+                inst_obj.name = inst_name.strip()
+            if city is not None:
+                inst_obj.city = city.strip()
+            if state is not None:
+                inst_obj.state = state.strip()
+            inst_obj.save()
 
         # Sync EmployeeProfile phone if present
         if hasattr(user, 'employee_profile') and user.employee_profile:

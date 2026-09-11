@@ -5,7 +5,7 @@
 
 {% block content %}
 <section class="inner-banner-wrap">
-<div class="inner-baner-container" style="background-image: url({% static 'assets/img/educator-img12.jpg' %});">
+<div class="inner-baner-container" style="background-image: url({% static 'assets/img/blog-default-indian.jpg' %});">
 <div class="container">
 <div class="inner-banner-content">
 <h1 class="inner-title">Faq</h1>
@@ -108,22 +108,22 @@
 <div class="qsn-form-container">
 <h4>Any Questions? Ask Us!!</h4>
 <div class="pattern-overlay zigzag-patten"></div>
-<form>
+<form id="faqForm">
     {% csrf_token %}
 <p>
-<input name="name" placeholder="Your Name*" type="text"/>
+<input name="name" id="faqName" placeholder="Your Name *" type="text" required />
 </p>
 <p>
-<input name="email" placeholder="Your Email*" type="email"/>
+<input name="email" id="faqEmail" placeholder="Your Email *" type="email" required />
 </p>
 <p>
-<input name="number" placeholder="Mobile Number*" type="number"/>
+<input name="number" id="faqPhone" placeholder="Mobile Number *" type="text" />
 </p>
 <p>
-<textarea placeholder="Enter your message*" rows="8"></textarea>
+<textarea name="message" id="faqMessage" placeholder="Enter your message *" rows="8" required></textarea>
 </p>
 <p>
-<input name="submit" type="submit" value="SUBMIT QUESTIONS"/>
+<input id="faqSubmitBtn" name="submit" type="submit" value="SUBMIT QUESTIONS"/>
 </p>
 </form>
 </div>
@@ -244,6 +244,64 @@
 {% block js %}
     <script src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script>
     <script>
-(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a1f05d0148129787',t:'MTc4NDcwMTQ3Ng=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();
+document.addEventListener('DOMContentLoaded', function() {
+  const form = document.getElementById('faqForm');
+  if (form) {
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      const btn = document.getElementById('faqSubmitBtn');
+      
+      const name = document.getElementById('faqName').value.trim();
+      const email = document.getElementById('faqEmail').value.trim();
+      const phone = document.getElementById('faqPhone') ? document.getElementById('faqPhone').value.trim() : '';
+      const message = document.getElementById('faqMessage') ? document.getElementById('faqMessage').value.trim() : '';
+
+      if (!name || !email || !message) {
+        alert('Please fill in required fields');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.value = 'Submitting...';
+
+      const payload = {
+        name: name,
+        email: email,
+        phone: phone,
+        subject: 'FAQ Question Inquiry',
+        message: message,
+        source: 'faq'
+      };
+
+      fetch('/api/crm/leads/submit/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || ''
+        },
+        body: JSON.stringify(payload)
+      })
+      .then(res => res.json())
+      .then(data => {
+        btn.disabled = false;
+        btn.value = 'SUBMIT QUESTIONS';
+        if (data.success) {
+          showSuccessModal(
+            'Question Submitted Successfully!',
+            data.message || 'Thank you! Your question has been received. Our team will contact you shortly.'
+          );
+          form.reset();
+        } else {
+          alert(data.message || 'Error submitting question. Please try again.');
+        }
+      })
+      .catch(err => {
+        btn.disabled = false;
+        btn.value = 'SUBMIT QUESTIONS';
+        alert('Network error. Please try again.');
+      });
+    });
+  }
+});
     </script>
 {% endblock %}

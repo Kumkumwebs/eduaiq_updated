@@ -66,6 +66,29 @@
             <img alt="" src="{% static 'assets/img/loader1.gif' %}">
         </div>
     </div>
+    <script>
+        // Force-hide the loader quickly, overriding any slower timer in custom.js
+        (function () {
+            function hideSiteLoaderFast() {
+                var loader = document.getElementById('siteLoader');
+                if (loader) {
+                    loader.style.transition = 'opacity 0.15s ease';
+                    loader.style.opacity = '0';
+                    setTimeout(function () {
+                        loader.style.display = 'none';
+                    }, 150);
+                }
+            }
+            // Hide as soon as DOM is ready (no need to wait for full window load)
+            if (document.readyState === 'complete' || document.readyState === 'interactive') {
+                setTimeout(hideSiteLoaderFast, 100);
+            } else {
+                document.addEventListener('DOMContentLoaded', function () {
+                    setTimeout(hideSiteLoaderFast, 100);
+                });
+            }
+        })();
+    </script>
 
     <div id="page" class="full-page">
 

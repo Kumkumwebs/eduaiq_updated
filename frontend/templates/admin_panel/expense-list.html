@@ -98,7 +98,7 @@
 <td>
 <div class="form-check style-check d-flex align-items-center">
 <input class="form-check-input" type="checkbox"/>
-<label class="form-check-label">02</label>
+<label class="form-check-label">01</label>
 </div>
 </td>
 <td>1002</td>
@@ -117,12 +117,12 @@
 <li>
 <button class="edit-sidebar-btn dropdown-item rounded text-secondary-light bg-hover-neutral-200 text-hover-neutral-900 d-flex align-items-center gap-2 py-6" type="button">
 <i class="ri-edit-2-line"></i>Edit
-                                                    </button>
+</button>
 </li>
 <li>
-<button class="dropdown-item rounded text-secondary-light bg-hover-neutral-200 text-hover-neutral-900 d-flex align-items-center gap-2 py-6" data-bs-target="#exampleModalDelete" data-bs-toggle="modal" type="button">
+<button class="delete-row-btn dropdown-item rounded text-danger-600 bg-hover-danger-100 d-flex align-items-center gap-2 py-6" type="button">
 <i class="ri-delete-bin-6-line"></i>Delete
-                                                    </button>
+</button>
 </li>
 </ul>
 </div>
@@ -132,7 +132,7 @@
 <td>
 <div class="form-check style-check d-flex align-items-center">
 <input class="form-check-input" type="checkbox"/>
-<label class="form-check-label">03</label>
+<label class="form-check-label">02</label>
 </div>
 </td>
 <td>1003</td>
@@ -166,7 +166,7 @@
 <td>
 <div class="form-check style-check d-flex align-items-center">
 <input class="form-check-input" type="checkbox"/>
-<label class="form-check-label">04</label>
+<label class="form-check-label">03</label>
 </div>
 </td>
 <td>1004</td>
@@ -200,7 +200,7 @@
 <td>
 <div class="form-check style-check d-flex align-items-center">
 <input class="form-check-input" type="checkbox"/>
-<label class="form-check-label">05</label>
+<label class="form-check-label">04</label>
 </div>
 </td>
 <td>1005</td>
@@ -234,7 +234,7 @@
 <td>
 <div class="form-check style-check d-flex align-items-center">
 <input class="form-check-input" type="checkbox"/>
-<label class="form-check-label">06</label>
+<label class="form-check-label">05</label>
 </div>
 </td>
 <td>1006</td>
@@ -268,7 +268,7 @@
 <td>
 <div class="form-check style-check d-flex align-items-center">
 <input class="form-check-input" type="checkbox"/>
-<label class="form-check-label">07</label>
+<label class="form-check-label">06</label>
 </div>
 </td>
 <td>1007</td>
@@ -302,7 +302,7 @@
 <td>
 <div class="form-check style-check d-flex align-items-center">
 <input class="form-check-input" type="checkbox"/>
-<label class="form-check-label">08</label>
+<label class="form-check-label">07</label>
 </div>
 </td>
 <td>1008</td>
@@ -336,7 +336,7 @@
 <td>
 <div class="form-check style-check d-flex align-items-center">
 <input class="form-check-input" type="checkbox"/>
-<label class="form-check-label">09</label>
+<label class="form-check-label">08</label>
 </div>
 </td>
 <td>1009</td>
@@ -370,7 +370,7 @@
 <td>
 <div class="form-check style-check d-flex align-items-center">
 <input class="form-check-input" type="checkbox"/>
-<label class="form-check-label">10</label>
+<label class="form-check-label">09</label>
 </div>
 </td>
 <td>1010</td>
@@ -427,6 +427,7 @@
               <label class="form-label text-sm fw-semibold text-primary-light">Category / Head <span class="text-danger">*</span></label>
               <select class="form-select radius-8" id="expHead" name="expense_head" required>
                 <option value="" selected disabled>Select Expense Category</option>
+                <option value="Company Billing">Company Billing & Subscriptions</option>
                 <option value="General">General Expense</option>
                 <option value="Office Rent">Office Rent</option>
                 <option value="Salaries">Salaries & Wages</option>
@@ -496,25 +497,57 @@
         </div>
     `;
 
-    // Global Delete Delegate
-    $(document).on('click', '.delete-row-btn, [data-bs-target="#exampleModalDelete"]', function (e) {
-        e.preventDefault();
-        const $row = $(this).closest('tr');
-        window.showConfirmModal({
-            title: 'Delete Expense Record',
-            message: 'Are you sure you want to delete this expense record?',
-            icon: 'ri-delete-bin-6-line',
-            iconBgClass: 'bg-danger-100',
-            iconColorClass: 'text-danger-600',
-            confirmText: 'Yes, Delete',
-            confirmBtnClass: 'btn-danger',
-            onConfirm: function () {
-                $row.fadeOut(250, function () {
-                    $row.remove();
-                    if (window.showToast) window.showToast('Expense record deleted successfully!', 'info');
+
+
+    function reindexSerialNumbers() {
+        $('#dataTable tbody tr:visible').each(function(index) {
+            const serialStr = String(index + 1).padStart(2, '0');
+            $(this).find('.form-check-label').text(serialStr);
+        });
+    }
+
+    // Filter deleted rows on page load
+    function applyDeletedExpenseRows() {
+        try {
+            const deletedItems = JSON.parse(localStorage.getItem('deleted_expense_list_items') || '[]');
+            if (deletedItems.length > 0) {
+                $('#dataTable tbody tr').each(function() {
+                    const invId = $(this).find('td:nth-child(2)').text().trim();
+                    const title = $(this).find('td:nth-child(3)').text().trim();
+                    if (deletedItems.includes(invId) || deletedItems.includes(title)) {
+                        $(this).remove();
+                    }
                 });
             }
-        });
+        } catch(e){}
+        reindexSerialNumbers();
+    }
+
+    $(document).ready(function() {
+        applyDeletedExpenseRows();
+    });
+
+    // Global Delete Handler with localStorage persistence
+    $(document).on('click', '.delete-row-btn, .delete-sidebar-btn, [data-bs-target="#exampleModalDelete"]', function (e) {
+        e.preventDefault();
+        const $row = $(this).closest('tr');
+        if ($row.length) {
+            const invId = $row.find('td:nth-child(2)').text().trim();
+            const title = $row.find('td:nth-child(3)').text().trim();
+
+            try {
+                let deletedItems = JSON.parse(localStorage.getItem('deleted_expense_list_items') || '[]');
+                if (invId && !deletedItems.includes(invId)) deletedItems.push(invId);
+                if (title && !deletedItems.includes(title)) deletedItems.push(title);
+                localStorage.setItem('deleted_expense_list_items', JSON.stringify(deletedItems));
+            } catch(e){}
+
+            $row.fadeOut(300, function() {
+                $(this).remove();
+                reindexSerialNumbers();
+                if (window.showToast) window.showToast('Expense item permanently deleted!', 'success');
+            });
+        }
     });
 
     // Global Edit Delegate
@@ -541,6 +574,10 @@
         const modalInstance = bootstrap.Modal.getOrCreateInstance(modalEl);
         modalInstance.show();
     });
+
+    if (window.jQuery && $.fn && $.fn.dataTable) {
+        $.fn.dataTable.ext.errMode = 'none';
+    }
 
     $('.data-table').each(function () {
         const $table = $(this);

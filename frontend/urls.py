@@ -130,5 +130,6 @@ urlpatterns = [
     path('admin-panel/logout/', views.logout_view, name='logout'),
     path('admin-panel/view-profile/', views.admin_profile, name='admin_profile'),
     path('admin-panel/profile/', views.admin_profile, name='admin_profile_alt'),
+    path('edit-profile/', views.admin_profile, name='edit_profile'),
     path('admin-panel/<slug:page_name>/', views.admin_page_router, name='admin_page_router'),
 ]

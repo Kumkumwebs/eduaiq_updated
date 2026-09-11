@@ -194,7 +194,10 @@ $(document).ready(function() {
         }
         let html = '';
         list.forEach(c => {
-          const isBook = c.category_slug === 'ai-books' || (c.category && c.category.slug === 'ai-books');
+          const titleUpper = (c.title || '').trim().toUpperCase();
+          const catSlug = c.category_slug || (c.category ? c.category.slug : '');
+          const catName = c.category_name || (c.category ? c.category.name : '');
+          const isBook = catSlug === 'ai-books' || catName === 'AI Books & Guides' || titleUpper === 'AI-GUIDE';
           const badge = isBook ? '<span class="badge bg-purple text-white ms-2">AI Book</span>' : '<span class="badge bg-info text-white ms-2">Course</span>';
           html += `
             <div class="col-md-6 col-lg-4">

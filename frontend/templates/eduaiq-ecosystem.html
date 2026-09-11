@@ -7,7 +7,7 @@
 
 {% block content %}
 <section class="inner-banner-wrap">
-<div class="inner-baner-container" style="background-image: url({% static 'assets/img/educator-img12.jpg' %});">
+<div class="inner-baner-container" style="background-image: url({% static 'assets/img/blog-default-indian.jpg' %});">
 <div class="container">
 <div class="inner-banner-content">
 <h1 class="inner-title">The EduAiQ Ecosystem</h1>
@@ -371,22 +371,26 @@
 </div>
 <div class="course-form">
 <h3>Want The Ecosystem At Your Institution?</h3>
-<div class="course-field">
-<div class="row">
-<div class="col-sm-6">
-<input name="name" placeholder="Your Name.." type="text"/>
+<div id="ecoSuccessMsg" class="alert alert-success d-none mb-3 radius-12 p-3 text-sm fw-semibold" style="background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0;">
+    <i class="fas fa-check-circle me-2"></i><span id="ecoSuccessText">Thank you! Your demo request has been received. Our team will contact you shortly.</span>
 </div>
-<div class="col-sm-6">
-<input name="name" placeholder="Your Email.." type="email"/>
-</div>
-<div class="col-sm-7">
-<input name="name" placeholder="Institution Name.." type="text"/>
-</div>
-<div class="col-sm-5">
-<button class="button-round-secondary" type="submit">REQUEST DEMO</button>
-</div>
-</div>
-</div>
+<form id="ecosystemDemoForm" class="course-field">
+    {% csrf_token %}
+    <div class="row">
+        <div class="col-sm-6 mb-3">
+            <input name="name" id="ecoName" placeholder="Your Name *" type="text" required />
+        </div>
+        <div class="col-sm-6 mb-3">
+            <input name="email" id="ecoEmail" placeholder="Your Email *" type="email" required />
+        </div>
+        <div class="col-sm-7 mb-3">
+            <input name="institution" id="ecoInstitution" placeholder="Institution Name *" type="text" required />
+        </div>
+        <div class="col-sm-5">
+            <button class="button-round-secondary" id="ecoSubmitBtn" type="submit">REQUEST DEMO</button>
+        </div>
+    </div>
+</form>
 </div>
 </div>
 </div>
@@ -413,7 +417,7 @@
 </ul>
 </div>
 <div class="service-btn">
-<a class="button-round-secondary" href="https://rzp.io/rzp/azhKQ22i">REGISTER TO
+<a class="button-round-secondary" href="/register/">REGISTER TO
                                         JOIN US</a>
 </div>
 </div>
@@ -426,4 +430,71 @@
 </div>
 </div>
 </section>
+{% endblock %}
+
+{% block js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const form = document.getElementById('ecosystemDemoForm');
+  if (form) {
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      const btn = document.getElementById('ecoSubmitBtn');
+      const successMsg = document.getElementById('ecoSuccessMsg');
+      
+      const name = document.getElementById('ecoName').value.trim();
+      const email = document.getElementById('ecoEmail').value.trim();
+      const institution = document.getElementById('ecoInstitution').value.trim();
+
+      if (!name || !email) {
+        alert('Please fill in required fields');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerText = 'Submitting...';
+
+      const payload = {
+        name: name,
+        email: email,
+        subject: 'Ecosystem Demo - ' + (institution || 'Institution'),
+        notes: 'Institution: ' + institution,
+        source: 'ecosystem_demo'
+      };
+
+      fetch('/api/crm/leads/submit/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || ''
+        },
+        body: JSON.stringify(payload)
+      })
+      .then(res => res.json())
+      .then(data => {
+        btn.disabled = false;
+        btn.innerText = 'REQUEST DEMO';
+        if (data.success) {
+          showSuccessModal(
+            'Demo Requested Successfully!',
+            data.message || 'Thank you! Your demo request has been received. Our team will contact you shortly.'
+          );
+          if (successMsg) {
+            document.getElementById('ecoSuccessText').innerText = data.message || 'Thank you! Your demo request has been received. Our team will contact you shortly.';
+            successMsg.classList.remove('d-none');
+          }
+          form.reset();
+        } else {
+          alert(data.message || 'Error submitting request. Please try again.');
+        }
+      })
+      .catch(err => {
+        btn.disabled = false;
+        btn.innerText = 'REQUEST DEMO';
+        alert('Network error. Please try again.');
+      });
+    });
+  }
+});
+</script>
 {% endblock %}

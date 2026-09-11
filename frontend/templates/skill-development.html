@@ -7,7 +7,7 @@
 
 {% block content %}
 <section class="inner-banner-wrap">
-<div class="inner-baner-container" style="background-image: url({% static 'assets/img/educator-img12.jpg' %});">
+<div class="inner-baner-container" style="background-image: url({% static 'assets/img/blog-default-indian.jpg' %});">
 <div class="container">
 <div class="inner-banner-content">
 <h1 class="inner-title">Skill Development</h1>
@@ -323,22 +323,26 @@
 </div>
 <div class="course-form">
 <h3>Not Sure Which Track Fits? Ask Us.</h3>
-<div class="course-field">
-<div class="row">
-<div class="col-sm-6">
-<input name="name" placeholder="Your Name.." type="text"/>
+<div id="skillSuccessMsg" class="alert alert-success d-none mb-3 radius-12 p-3 text-sm fw-semibold" style="background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0;">
+    <i class="fas fa-check-circle me-2"></i><span id="skillSuccessText">Thank you! Your guidance request has been received. Our team will contact you shortly.</span>
 </div>
-<div class="col-sm-6">
-<input name="name" placeholder="Your Email.." type="email"/>
-</div>
-<div class="col-sm-7">
-<input name="name" placeholder="Your Current Role.." type="text"/>
-</div>
-<div class="col-sm-5">
-<button class="button-round-secondary" type="submit">GET GUIDANCE</button>
-</div>
-</div>
-</div>
+<form id="skillGuidanceForm" class="course-field">
+    {% csrf_token %}
+    <div class="row">
+        <div class="col-sm-6 mb-3">
+            <input name="name" id="skillName" placeholder="Your Name *" type="text" required />
+        </div>
+        <div class="col-sm-6 mb-3">
+            <input name="email" id="skillEmail" placeholder="Your Email *" type="email" required />
+        </div>
+        <div class="col-sm-7 mb-3">
+            <input name="role" id="skillRole" placeholder="Your Current Role *" type="text" required />
+        </div>
+        <div class="col-sm-5">
+            <button class="button-round-secondary" id="skillSubmitBtn" type="submit">GET GUIDANCE</button>
+        </div>
+    </div>
+</form>
 </div>
 </div>
 </div>
@@ -365,7 +369,7 @@
 </ul>
 </div>
 <div class="service-btn">
-<a class="button-round-secondary" href="https://rzp.io/rzp/azhKQ22i">REGISTER TO
+<a class="button-round-secondary" href="/register/">REGISTER TO
                                         JOIN US</a>
 </div>
 </div>
@@ -378,4 +382,71 @@
 </div>
 </div>
 </section>
+{% endblock %}
+
+{% block js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const form = document.getElementById('skillGuidanceForm');
+  if (form) {
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      const btn = document.getElementById('skillSubmitBtn');
+      const successMsg = document.getElementById('skillSuccessMsg');
+      
+      const name = document.getElementById('skillName').value.trim();
+      const email = document.getElementById('skillEmail').value.trim();
+      const role = document.getElementById('skillRole').value.trim();
+
+      if (!name || !email) {
+        alert('Please fill in required fields');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerText = 'Submitting...';
+
+      const payload = {
+        name: name,
+        email: email,
+        subject: 'Skill Development Guidance - ' + (role || 'Role'),
+        notes: 'Current Role: ' + role,
+        source: 'skill_development'
+      };
+
+      fetch('/api/crm/leads/submit/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || ''
+        },
+        body: JSON.stringify(payload)
+      })
+      .then(res => res.json())
+      .then(data => {
+        btn.disabled = false;
+        btn.innerText = 'GET GUIDANCE';
+        if (data.success) {
+          showSuccessModal(
+            'Guidance Requested Successfully!',
+            data.message || 'Thank you! Your guidance request has been received. Our team will contact you shortly.'
+          );
+          if (successMsg) {
+            document.getElementById('skillSuccessText').innerText = data.message || 'Thank you! Your guidance request has been received. Our team will contact you shortly.';
+            successMsg.classList.remove('d-none');
+          }
+          form.reset();
+        } else {
+          alert(data.message || 'Error submitting request. Please try again.');
+        }
+      })
+      .catch(err => {
+        btn.disabled = false;
+        btn.innerText = 'GET GUIDANCE';
+        alert('Network error. Please try again.');
+      });
+    });
+  }
+});
+</script>
 {% endblock %}

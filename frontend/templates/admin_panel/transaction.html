@@ -855,26 +855,51 @@
         });
     }
 
-    // Global Delete Row Delegate
-    $(document).on('click', '.delete-row-btn, [data-bs-target="#exampleModalDelete"]', function (e) {
+    function reindexSerialNumbers() {
+        $('#dataTable tbody tr:visible').each(function(index) {
+            const serialStr = String(index + 1).padStart(2, '0');
+            $(this).find('.form-check-label').text(serialStr);
+        });
+    }
 
-        e.preventDefault();
-        const $row = $(this).closest('tr');
-        window.showConfirmModal({
-            title: 'Delete Transaction',
-            message: 'Are you sure you want to delete this transaction record?',
-            icon: 'ri-delete-bin-6-line',
-            iconBgClass: 'bg-danger-100',
-            iconColorClass: 'text-danger-600',
-            confirmText: 'Yes, Delete',
-            confirmBtnClass: 'btn-danger',
-            onConfirm: function () {
-                $row.fadeOut(250, function () {
-                    $row.remove();
-                    if (window.showToast) window.showToast('Transaction deleted successfully!', 'info');
+    // Filter deleted transactions on page load
+    function applyDeletedTransactions() {
+        try {
+            const deletedItems = JSON.parse(localStorage.getItem('deleted_transaction_items') || '[]');
+            if (deletedItems.length > 0) {
+                $('#dataTable tbody tr').each(function() {
+                    const invId = $(this).find('td:nth-child(2)').text().trim();
+                    const trxType = $(this).find('td:nth-child(4)').text().trim();
+                    if (deletedItems.includes(invId) || deletedItems.includes(invId + '_' + trxType)) {
+                        $(this).remove();
+                    }
                 });
             }
-        });
+        } catch(e){}
+        reindexSerialNumbers();
+    }
+
+    // Global Delete Row Delegate with localStorage persistence
+    $(document).on('click', '.delete-row-btn, [data-bs-target="#exampleModalDelete"]', function (e) {
+        e.preventDefault();
+        const $row = $(this).closest('tr');
+        if ($row.length) {
+            const invId = $row.find('td:nth-child(2)').text().trim();
+            const trxType = $row.find('td:nth-child(4)').text().trim();
+
+            try {
+                let deletedItems = JSON.parse(localStorage.getItem('deleted_transaction_items') || '[]');
+                if (invId && !deletedItems.includes(invId)) deletedItems.push(invId);
+                if (invId && trxType && !deletedItems.includes(invId + '_' + trxType)) deletedItems.push(invId + '_' + trxType);
+                localStorage.setItem('deleted_transaction_items', JSON.stringify(deletedItems));
+            } catch(e){}
+
+            $row.fadeOut(250, function () {
+                $row.remove();
+                reindexSerialNumbers();
+                if (window.showToast) window.showToast('Transaction permanently deleted!', 'success');
+            });
+        }
     });
 
     // Global Edit Row Delegate
@@ -949,6 +974,7 @@
     }
 
     $(document).ready(function() {
+        applyDeletedTransactions();
         loadTransactions();
     });
 

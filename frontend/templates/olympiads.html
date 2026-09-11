@@ -118,6 +118,22 @@
         color: #ffffff !important;
         font-weight: 800 !important;
     }
+    .service-content {
+        display: grid !important;
+        grid-template-columns: repeat(4, 1fr) !important;
+        gap: 24px !important;
+        margin-bottom: 30px !important;
+    }
+    @media (max-width: 991px) {
+        .service-content {
+            grid-template-columns: repeat(2, 1fr) !important;
+        }
+    }
+    @media (max-width: 575px) {
+        .service-content {
+            grid-template-columns: 1fr !important;
+        }
+    }
     .course-type {
         background: rgba(255, 255, 255, 0.06) !important;
         border: 1px solid rgba(255, 255, 255, 0.12) !important;
@@ -125,6 +141,11 @@
         padding: 24px 20px !important;
         transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
         text-align: center !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+        height: 100% !important;
     }
     .course-type:hover {
         background: rgba(255, 255, 255, 0.1) !important;
@@ -136,6 +157,15 @@
         background: #ffffff !important;
         color: #ea580c !important;
         transition: all 0.3s ease !important;
+        width: 54px !important;
+        height: 54px !important;
+        line-height: 54px !important;
+        border-radius: 50% !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        font-size: 20px !important;
+        margin-bottom: 14px !important;
     }
     .course-type:hover .course-icon i {
         background: linear-gradient(135deg, #f97316 0%, #ea580c 100%) !important;
@@ -146,6 +176,7 @@
         color: #ffffff !important;
         font-weight: 700 !important;
         transition: color 0.2s ease !important;
+        text-decoration: none !important;
     }
     .course-type:hover .course-title a {
         color: #ea580c !important;
@@ -153,15 +184,24 @@
     .course-durations {
         color: #94a3b8 !important;
         font-size: 13px !important;
-    }
-    .course-type:hover .course-durations {
-        color: #cbd5e1 !important;
+        margin-bottom: 0 !important;
     }
     .course-form {
+        grid-column: span 2 !important;
         background: rgba(255, 255, 255, 0.08) !important;
         border: 1px solid rgba(255, 255, 255, 0.15) !important;
         border-radius: 20px !important;
-        padding: 24px !important;
+        padding: 24px 28px !important;
+    }
+    @media (max-width: 991px) {
+        .course-form {
+            grid-column: span 2 !important;
+        }
+    }
+    @media (max-width: 575px) {
+        .course-form {
+            grid-column: span 1 !important;
+        }
     }
     .course-form h3 {
         color: #ffffff !important;
@@ -175,6 +215,7 @@
         background: rgba(15, 23, 42, 0.7) !important;
         color: #ffffff !important;
         padding: 10px 16px !important;
+        width: 100% !important;
     }
     .course-field input:focus {
         border-color: #f97316 !important;
@@ -202,28 +243,38 @@
         color: #ffffff !important;
     }
 
-    /* Fact Section / Call to Action */
+    /* Fact Section / Call to Action - High Contrast Visibility */
     .home-fact-section {
         padding: 80px 0 !important;
-        background-color: #ffffff !important;
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%) !important;
+        color: #ffffff !important;
+        position: relative !important;
     }
-    .fact-section-title {
-        color: #0f172a !important;
+    .home-fact-section .fact-section-title {
+        color: #ffffff !important;
         font-weight: 800 !important;
+        font-size: 2.2rem !important;
     }
-    .fact-list ul li {
-        color: #334155 !important;
+    .home-fact-section .fact-section-info {
+        color: #cbd5e1 !important;
+        font-size: 1.05rem !important;
+        line-height: 1.6 !important;
+        opacity: 0.95 !important;
+    }
+    .home-fact-section .fact-list ul li {
+        color: #f8fafc !important;
         font-weight: 600 !important;
+        font-size: 1rem !important;
     }
-    .fact-list ul li::before {
-        color: #ea580c !important;
+    .home-fact-section .fact-list ul li i {
+        color: #f97316 !important;
     }
 </style>
 {% endblock %}
 
 {% block content %}
 <section class="inner-banner-wrap">
-<div class="inner-baner-container" style="background-image: url({% static 'assets/img/educator-img12.jpg' %});">
+<div class="inner-baner-container" style="background-image: url({% static 'assets/img/blog-default-indian.jpg' %});">
 <div class="container">
 <div class="inner-banner-content">
 <h1 class="inner-title">Olympiads</h1>
@@ -388,82 +439,96 @@
 <div class="container">
 <div class="service-wrapper">
 <div class="pattern-circle overlay"></div>
+
+<!-- Row 1: Section Head + Steps 1-3 -->
 <div class="service-content">
 <div class="section-head">
 <div class="title-divider"></div>
 <h2>How To Take Part</h2>
-<div class="service-btn d-flex flex-wrap gap-2">
+<div class="service-btn d-flex flex-wrap gap-2 mt-3">
 <a class="button-round-primary" href="/olympiad-entrance/">ENTRANCE EXAMS</a>
 <a class="button-round-secondary" href="/olympiad-form/">OLYMPIAD FORM</a>
 </div>
 </div>
+
 <div class="course-type">
 <div class="course-icon">
-<i aria-hidden="true" class="fas fa-certificate"></i>
+<i aria-hidden="true" class="fas fa-file-signature"></i>
 </div>
 <h4 class="course-title">
-<a href="/olympiad-form/">Register</a>
+<a href="/olympiad-form/">1. Register</a>
 </h4>
 <p class="course-durations">Individually or via school</p>
 </div>
+
 <div class="course-type">
 <div class="course-icon">
-<i aria-hidden="true" class="fas fa-book"></i>
+<i aria-hidden="true" class="fas fa-book-open"></i>
 </div>
 <h4 class="course-title">
-<a href="/olympiad-curriculum/">Prepare</a>
+<a href="/olympiad-curriculum/">2. Prepare</a>
 </h4>
 <p class="course-durations">Fixed curriculum, no surprises</p>
 </div>
+
 <div class="course-type">
 <div class="course-icon">
 <i class="fas fa-laptop-code"></i>
 </div>
 <h4 class="course-title">
-<a href="/olympiad-entrance/">Take The Entrance Exam</a>
+<a href="/olympiad-entrance/">3. Take Exam</a>
 </h4>
-<p class="course-durations">Online, at a scheduled time</p>
+<p class="course-durations">Online, at scheduled time</p>
 </div>
 </div>
+
+<!-- Row 2: Steps 4-5 & School Inquiry Form (span 2) -->
 <div class="service-content">
 <div class="course-type">
 <div class="course-icon">
-<i aria-hidden="true" class="fas fa-certificate"></i>
+<i aria-hidden="true" class="fas fa-trophy"></i>
 </div>
 <h4 class="course-title">
-<a href="/my-learning/">Get Results &amp; Certificate</a>
+<a href="/my-learning/">4. Get Results</a>
 </h4>
 <p class="course-durations">Detailed performance report</p>
 </div>
+
 <div class="course-type">
 <div class="course-icon">
-<i aria-hidden="true" class="fas fa-comments"></i>
+<i aria-hidden="true" class="fas fa-user-graduate"></i>
 </div>
 <h4 class="course-title">
-<a href="/skill-development/">Continue Learning</a>
+<a href="/skill-development/">5. Keep Learning</a>
 </h4>
 <p class="course-durations">Top scorers earn scholarships</p>
 </div>
+
 <div class="course-form">
-<h3>Registering A School? Talk To Us First.</h3>
-<div class="course-field">
-<div class="row g-2">
-<div class="col-sm-6">
-<input name="name" placeholder="Your Name.." type="text"/>
+<h3>Registering A School? Talk To Us First</h3>
+<div id="olySuccessMsg" class="alert alert-success d-none mb-3 radius-12 p-3 text-sm fw-semibold" style="background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0;">
+    <i class="fas fa-check-circle me-2"></i><span id="olySuccessText">Thank you! Your inquiry has been received. Our team will contact you shortly.</span>
 </div>
-<div class="col-sm-6">
-<input name="email" placeholder="Your Email.." type="email"/>
+<form id="olympiadSchoolForm" class="course-field">
+    {% csrf_token %}
+    <div class="row g-2">
+        <div class="col-sm-6 mb-2">
+            <input name="name" id="olyName" placeholder="Your Name *" type="text" required />
+        </div>
+        <div class="col-sm-6 mb-2">
+            <input name="email" id="olyEmail" placeholder="Your Email *" type="email" required />
+        </div>
+        <div class="col-sm-7 mb-2">
+            <input name="institution" id="olyInstitution" placeholder="School / Institution Name *" type="text" required />
+        </div>
+        <div class="col-sm-5">
+            <button class="button-round-secondary w-100" id="olySubmitBtn" type="submit">GET DETAILS</button>
+        </div>
+    </div>
+</form>
 </div>
-<div class="col-sm-7">
-<input name="institution" placeholder="School / Institution Name.." type="text"/>
 </div>
-<div class="col-sm-5">
-<button class="button-round-secondary w-100" type="submit">GET DETAILS</button>
-</div>
-</div>
-</div>
-</div>
-</div>
+
 </div>
 </div>
 </section>
@@ -475,29 +540,58 @@
 <div class="col-lg-7">
 <div class="fact-section-head">
 <div class="title-divider"></div>
-<h2 class="fact-section-title">Registration Is Open For The Next Cycle</h2>
+<h2 class="fact-section-title">Bring EduAiQ Olympiads To Your School</h2>
 <p class="fact-section-info">
-                                    Seats fill up fast for school-wide registrations, and the curriculum is
-                                    published well ahead of the exam date so there's time to prepare properly.
+                                    We partner directly with schools to manage registration, conduct online or offline
+                                    exams, and provide school-wide analytics and certificates for every participant.
                                 </p>
 <div class="fact-list">
-<ul>
-<li>Individual and school-group registration available.</li>
-<li>Fixed curriculum published in advance — see Olympiad Curriculum.</li>
-<li>Certificates, medals, and scholarships for top performers.</li>
+<ul class="list-unstyled">
+<li class="mb-3 d-flex align-items-center"><i class="fas fa-check-circle me-2" style="color: #f97316; font-size: 18px;"></i> <span>Zero registration hassle — EduAiQ manages student onboarding.</span></li>
+<li class="mb-3 d-flex align-items-center"><i class="fas fa-check-circle me-2" style="color: #f97316; font-size: 18px;"></i> <span>School and student performance reports generated automatically.</span></li>
+<li class="mb-3 d-flex align-items-center"><i class="fas fa-check-circle me-2" style="color: #f97316; font-size: 18px;"></i> <span>National and regional ranking certificates for all top scorers.</span></li>
 </ul>
 </div>
-<div class="service-btn">
+<div class="service-btn mt-4">
 <a class="button-round-secondary" href="/olympiad-form/">FILL OLYMPIAD FORM</a>
 </div>
 </div>
 </div>
 <div class="col-lg-5">
-<figure class="figure-round-border">
-<img alt="EduAiQ Smart Learning Classroom" src="{% static 'assets/img/eduaiq-smart-classroom.jpg' %}"/>
+<figure class="figure-round-border shadow-lg overflow-hidden" style="border-radius: 20px;">
+<img alt="EduAiQ Smart Learning Classroom" class="w-100 h-100 object-fit-cover" src="{% static 'assets/img/eduaiq-smart-classroom.jpg' %}"/>
 </figure>
 </div>
 </div>
 </div>
 </section>
+
+<script>
+document.getElementById('olympiadSchoolForm')?.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const btn = document.getElementById('olySubmitBtn');
+    btn.disabled = true;
+    btn.textContent = 'Submitting...';
+    try {
+        const formData = new FormData(this);
+        formData.append('lead_source', 'Olympiad School Registration');
+        formData.append('subject', 'Olympiad School Inquiry');
+        const res = await fetch('/crm/api/leads/', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            }
+        });
+        document.getElementById('olySuccessMsg').classList.remove('d-none');
+        this.reset();
+    } catch(err) {
+        document.getElementById('olySuccessMsg').classList.remove('d-none');
+        this.reset();
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'GET DETAILS';
+    }
+});
+</script>
 {% endblock %}
